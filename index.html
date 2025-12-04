@@ -202,7 +202,7 @@
     .mine-panel {
       border-radius: 16px;
       border: 1px solid rgba(31, 41, 55, 0.9);
-      background: radial-gradient(circle at top, #020617, #020617);
+      background: radial-gradient(circle at 20% 0%, #0f172a, #020617 65%);
       padding: 10px;
       position: relative;
       overflow: hidden;
@@ -215,7 +215,64 @@
       height: 260px;
       display: block;
       border-radius: 14px;
-      background: #020617;
+      background: linear-gradient(180deg, #0b1220, #0a1020 60%, #060914);
+    }
+
+    .minimap-overlay {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 140px;
+      height: 100px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      border-radius: 10px;
+      pointer-events: none;
+      background: radial-gradient(circle at 50% 20%, rgba(59, 130, 246, 0.1), rgba(14, 165, 233, 0.04));
+      box-shadow: inset 0 0 12px rgba(14, 165, 233, 0.25);
+      color: var(--text-soft);
+      font-size: 0.75rem;
+      padding: 4px 6px;
+    }
+
+    .floating-container {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .floating-text {
+      position: absolute;
+      color: #facc15;
+      font-weight: 700;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+      opacity: 0;
+      transition: transform 0.8s ease-out, opacity 0.8s ease-out;
+      white-space: nowrap;
+    }
+
+    .sound-controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .toggle-btn {
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      background: rgba(15, 23, 42, 0.8);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.82rem;
+    }
+
+    .toggle-btn.active {
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+      background: rgba(56, 189, 248, 0.1);
+      color: #e0f2fe;
     }
 
     .depth-hud {
@@ -638,6 +695,8 @@
               <span>Derinlik:</span>
               <span class="value" id="depth-label">0 m</span>
             </div>
+            <div class="minimap-overlay" aria-hidden="true">Mini-harita</div>
+            <div class="floating-container" id="floating-container"></div>
           </div>
 
           <div class="controls-card">
@@ -650,6 +709,18 @@
               <div class="stat-line">
                 <span>Oto kazma:</span>
                 <span class="value" id="auto-rate-label">0 m/sn</span>
+              </div>
+            </div>
+
+            <div class="dig-row" style="margin-top:8px; gap:12px; align-items:flex-start;">
+              <button id="btn-charge" class="secondary small">💥 Patlayıcı Yük</button>
+              <div class="stat-line">
+                <span>Patlayıcı güç:</span>
+                <span class="value" id="charge-status">Hazır</span>
+              </div>
+              <div class="stat-line">
+                <span>Bonus çarpan:</span>
+                <span class="value" id="charge-mult">x1.0</span>
               </div>
             </div>
 
@@ -666,6 +737,11 @@
               <div class="resource-chip">
                 💎 <span>Maden:</span> <span class="value" id="gems-label">0</span>
               </div>
+            </div>
+
+            <div class="sound-controls">
+              <button id="btn-toggle-sfx" class="toggle-btn active">🔊 Ses Açık</button>
+              <button id="btn-toggle-music" class="toggle-btn">🎵 Müzik Kapalı</button>
             </div>
 
             <div class="upgrade-list">
@@ -705,6 +781,32 @@
                 </div>
                 <button id="btn-upgrade-drill" class="small">
                   Kur · <span id="drill-cost-label">100</span> 💰
+                </button>
+              </div>
+
+              <div class="upgrade-row">
+                <div class="upgrade-main">
+                  <div class="upgrade-title">Jeo-Radar</div>
+                  <div class="upgrade-sub">
+                    Değerli cevher bulma ihtimalini artırır. Seviye:
+                    <span id="radar-level-label">0</span>
+                  </div>
+                </div>
+                <button id="btn-upgrade-radar" class="small">
+                  Yükselt · <span id="radar-cost-label">120</span> 💰
+                </button>
+              </div>
+
+              <div class="upgrade-row">
+                <div class="upgrade-main">
+                  <div class="upgrade-title">Çıkarma Verimliliği</div>
+                  <div class="upgrade-sub">
+                    Kazanç çarpanını yükseltir. Seviye:
+                    <span id="efficiency-level-label">0</span>
+                  </div>
+                </div>
+                <button id="btn-upgrade-efficiency" class="small">
+                  Yükselt · <span id="efficiency-cost-label">150</span> 💰
                 </button>
               </div>
             </div>
@@ -773,6 +875,12 @@
     axeLevel: 1,
     miners: 0,
     drillLevel: 0,
+    radarLevel: 0,
+    efficiencyLevel: 0,
+    chargeReadyAt: 0,
+    chargeActiveUntil: 0,
+    soundEnabled: true,
+    musicEnabled: false,
     perClick: 1,
     autoRate: 0,
     bestDepthSynced: 0,
@@ -783,6 +891,15 @@
   let leaderboardMode = "global"; // "global" | "room"
   let supabaseOnline = true;
   let lastSyncError = null;
+  let prevChargeActive = false;
+  let userInteracted = false;
+
+  function markInteraction() {
+    if (userInteracted) return;
+    userInteracted = true;
+    soundManager.ensureUnlocked();
+    soundManager.updateMusicState();
+  }
 
   // cost helpers (simple exponential-ish)
   function axeCost(level) {
@@ -793,6 +910,12 @@
   }
   function drillCost(level) {
     return Math.round(100 * Math.pow(2.2, level));
+  }
+  function radarCost(level) {
+    return Math.round(120 * Math.pow(1.7, level));
+  }
+  function efficiencyCost(level) {
+    return Math.round(150 * Math.pow(1.65, level));
   }
 
   // ===================== DOM refs =====================
@@ -813,10 +936,17 @@
   const axeLevelLabel = document.getElementById("axe-level-label");
   const minersLabel = document.getElementById("miners-label");
   const drillLevelLabel = document.getElementById("drill-level-label");
+  const radarLevelLabel = document.getElementById("radar-level-label");
+  const efficiencyLevelLabel = document.getElementById("efficiency-level-label");
   const axeCostLabel = document.getElementById("axe-cost-label");
   const minerCostLabel = document.getElementById("miner-cost-label");
   const drillCostLabel = document.getElementById("drill-cost-label");
+  const radarCostLabel = document.getElementById("radar-cost-label");
+  const efficiencyCostLabel = document.getElementById("efficiency-cost-label");
   const logEl = document.getElementById("log");
+  const floatingContainer = document.getElementById("floating-container");
+  const chargeStatusEl = document.getElementById("charge-status");
+  const chargeMultEl = document.getElementById("charge-mult");
 
   const onlinePill = document.getElementById("online-pill");
   const onlineStatusText = document.getElementById("online-status-text");
@@ -832,6 +962,11 @@
   const btnUpgradeAxe = document.getElementById("btn-upgrade-axe");
   const btnHireMiner = document.getElementById("btn-hire-miner");
   const btnUpgradeDrill = document.getElementById("btn-upgrade-drill");
+  const btnUpgradeRadar = document.getElementById("btn-upgrade-radar");
+  const btnUpgradeEfficiency = document.getElementById("btn-upgrade-efficiency");
+  const btnToggleSfx = document.getElementById("btn-toggle-sfx");
+  const btnToggleMusic = document.getElementById("btn-toggle-music");
+  const btnCharge = document.getElementById("btn-charge");
   const btnViewGlobal = document.getElementById("btn-view-global");
   const btnViewRoom = document.getElementById("btn-view-room");
   const btnRefreshLeaderboard = document.getElementById("btn-refresh-leaderboard");
@@ -844,6 +979,89 @@
     logEl.appendChild(line);
     logEl.scrollTop = logEl.scrollHeight;
   }
+
+  const soundManager = (() => {
+    let unlocked = false;
+    const createSound = (src, loop = false, volume = 0.8) => {
+      try {
+        const a = new Audio(src);
+        a.loop = loop;
+        a.volume = volume;
+        return a;
+      } catch (e) {
+        console.warn("Ses yüklenemedi", src, e);
+        return null;
+      }
+    };
+
+    const sounds = {
+      dig: createSound("sounds/dig.mp3", false, 0.75),
+      upgrade: createSound("sounds/upgrade.mp3", false, 0.8),
+      cash: createSound("sounds/cash.mp3", false, 0.7),
+      gem: createSound("sounds/gem.mp3", false, 0.6),
+      music: createSound("sounds/bg-music.mp3", true, 0.3),
+    };
+
+    function ensureUnlocked() {
+      if (unlocked) return;
+      unlocked = true;
+    }
+
+    function playSound(key) {
+      if (!state.soundEnabled || !userInteracted) return;
+      const s = sounds[key];
+      if (!s) return;
+      ensureUnlocked();
+      try {
+        s.currentTime = 0;
+        s.play();
+      } catch (e) {
+        /* ignore */
+      }
+    }
+
+    function updateMusicState() {
+      const m = sounds.music;
+      if (!m) return;
+      if (state.musicEnabled && state.soundEnabled && userInteracted) {
+        ensureUnlocked();
+        m.volume = 0.25;
+        m.play().catch(() => {});
+      } else {
+        m.pause();
+      }
+    }
+
+    return {
+      playDig() {
+        playSound("dig");
+      },
+      playUpgrade() {
+        playSound("upgrade");
+      },
+      playMoney() {
+        playSound("cash");
+      },
+      playGem() {
+        playSound("gem");
+      },
+      toggleMute() {
+        state.soundEnabled = !state.soundEnabled;
+        if (!state.soundEnabled && sounds.music) sounds.music.pause();
+        updateMusicState();
+        saveLocalState();
+        updateStatsUI();
+      },
+      toggleMusic() {
+        state.musicEnabled = !state.musicEnabled;
+        updateMusicState();
+        saveLocalState();
+        updateStatsUI();
+      },
+      updateMusicState,
+      ensureUnlocked,
+    };
+  })();
 
   // ===================== Local Storage =====================
   function loadLocalState() {
@@ -878,32 +1096,54 @@
   }
 
   // ===================== Mining logic =====================
+  function isChargeActive() {
+    return Date.now() < state.chargeActiveUntil;
+  }
+
+  function nextChargeReadyInMs() {
+    return Math.max(0, state.chargeReadyAt - Date.now());
+  }
+
+  function chargeMultiplier() {
+    return 2 + state.drillLevel * 0.15 + state.radarLevel * 0.05;
+  }
+
   function recalcDerivedStats() {
-    state.perClick = 1 + (state.axeLevel - 1) * 0.6;
-    state.autoRate = state.miners * 0.4 + state.drillLevel * 1.5;
+    const efficiencyBoost = 1 + state.efficiencyLevel * 0.08;
+    const basePerClick = 1 + (state.axeLevel - 1) * 0.6;
+    const activeChargeBoost = isChargeActive() ? chargeMultiplier() : 1;
+    state.perClick = basePerClick * efficiencyBoost * activeChargeBoost;
+    const autoBase = state.miners * 0.4 + state.drillLevel * 1.5;
+    state.autoRate = autoBase * (1 + state.efficiencyLevel * 0.04);
   }
 
   function applyMining(amount, isAuto = false) {
-    if (amount <= 0) return;
+    if (amount <= 0)
+      return { moneyGain: 0, goldGain: 0, oilGain: 0, gemGain: 0 };
+
     state.depth += amount;
     if (state.depth < 0) state.depth = 0;
 
-    // simple resource model
     const base = amount;
-    const goldGain = base * (0.25 + Math.random() * 0.3);
-    const oilGain = base * (0.15 + Math.random() * 0.25);
-    const gemGain = Math.random() < 0.02 ? base * (1.5 + Math.random()) : 0;
+    const depthFactor = 1 + state.depth * 0.0004;
+    const goldGain = base * (0.25 + Math.random() * 0.3) * depthFactor;
+    const oilGain = base * (0.15 + Math.random() * 0.25) * (1 + state.radarLevel * 0.05);
+    const gemChance = 0.02 + state.radarLevel * 0.01 + Math.min(0.15, state.depth / 4000);
+    const gemGain = Math.random() < gemChance ? base * (1.5 + Math.random() * (1 + state.radarLevel * 0.3)) : 0;
 
     state.gold += goldGain;
     state.oil += oilGain;
     state.gems += gemGain;
 
-    const moneyGain = goldGain * 1 + oilGain * 1.5 + gemGain * 6;
+    const moneyGainRaw = goldGain * 1 + oilGain * 1.5 + gemGain * 6;
+    const moneyGain = moneyGainRaw * (1 + state.efficiencyLevel * 0.12);
     state.money += moneyGain;
 
     if (!isAuto) {
       log(`+${moneyGain.toFixed(1)} 💰 (kazma) · Derinlik: ${state.depth.toFixed(1)} m`);
     }
+
+    return { moneyGain, goldGain, oilGain, gemGain };
   }
 
   function canAfford(cost) {
@@ -927,9 +1167,34 @@
     axeLevelLabel.textContent = state.axeLevel;
     minersLabel.textContent = state.miners;
     drillLevelLabel.textContent = state.drillLevel;
+    radarLevelLabel.textContent = state.radarLevel;
+    efficiencyLevelLabel.textContent = state.efficiencyLevel;
     axeCostLabel.textContent = axeCost(state.axeLevel).toFixed(0);
     minerCostLabel.textContent = minerCost(state.miners).toFixed(0);
     drillCostLabel.textContent = drillCost(state.drillLevel).toFixed(0);
+    radarCostLabel.textContent = radarCost(state.radarLevel).toFixed(0);
+    efficiencyCostLabel.textContent = efficiencyCost(state.efficiencyLevel).toFixed(0);
+
+    const readyIn = nextChargeReadyInMs();
+    if (isChargeActive()) {
+      chargeStatusEl.textContent = "AKTİF";
+      chargeStatusEl.style.color = "#facc15";
+    } else if (readyIn <= 0) {
+      chargeStatusEl.textContent = "Hazır";
+      chargeStatusEl.style.color = "#22c55e";
+    } else {
+      chargeStatusEl.textContent = `${(readyIn / 1000).toFixed(1)} sn`;
+      chargeStatusEl.style.color = "#f97373";
+    }
+    chargeMultEl.textContent = `x${chargeMultiplier().toFixed(1)}`;
+
+    btnCharge.disabled = readyIn > 0 && !isChargeActive();
+    btnCharge.classList.toggle("active", isChargeActive());
+
+    btnToggleSfx.classList.toggle("active", state.soundEnabled);
+    btnToggleSfx.textContent = state.soundEnabled ? "🔊 Ses Açık" : "🔈 Ses Kapalı";
+    btnToggleMusic.classList.toggle("active", state.musicEnabled);
+    btnToggleMusic.textContent = state.musicEnabled ? "🎵 Müzik Açık" : "🎵 Müzik Kapalı";
 
     // room label
     if (state.roomCode) {
@@ -940,10 +1205,121 @@
   }
 
   // ===================== Three.js =====================
-  let scene, camera, renderer;
-  let shaftMesh, drillMesh;
+  let scene, camera, minimapCamera, renderer;
+  let shaftGroup, drillMesh, minerGroup, minerArmL, minerArmR, pickaxeMesh;
+  let oreDecorations = [];
+  let dustParticles = [];
   let lastFrameTime = performance.now();
   let digPulse = 0;
+  let shakeTime = 0;
+  let shakeStrength = 0;
+  let minerDigTimer = 0;
+  let autoDigTimer = 0;
+  let autoSoundTimer = 0;
+  let depthTargetY = 0;
+  const tempVec = new THREE.Vector3();
+
+  const dustMaterial = new THREE.MeshStandardMaterial({
+    color: 0xc4b5a1,
+    roughness: 0.9,
+    metalness: 0.05,
+  });
+
+  function createGroundTexture() {
+    const size = 64;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        ctx.fillStyle = (x + y) % 2 === 0 ? "#3a2a1d" : "#2f2218";
+        ctx.fillRect((x * size) / 8, (y * size) / 8, size / 8, size / 8);
+      }
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(8, 8);
+    tex.anisotropy = 4;
+    return tex;
+  }
+
+  function buildMiner() {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6, metalness: 0.1 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf5d0a3 });
+    const accentMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0x3b82f6 });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.1, 0.45), bodyMat);
+    body.position.y = 0.8;
+    group.add(body);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), skinMat);
+    head.position.set(0, 1.45, 0);
+    group.add(head);
+
+    const helmet = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.32, 0.2, 12), accentMat);
+    helmet.position.set(0, 1.75, 0);
+    group.add(helmet);
+
+    const legGeo = new THREE.BoxGeometry(0.2, 0.7, 0.25);
+    const legL = new THREE.Mesh(legGeo, bodyMat);
+    legL.position.set(-0.2, 0.35, 0.05);
+    const legR = legL.clone();
+    legR.position.x = 0.2;
+    group.add(legL, legR);
+
+    const armGeo = new THREE.BoxGeometry(0.18, 0.6, 0.18);
+    minerArmL = new THREE.Mesh(armGeo, skinMat);
+    minerArmL.position.set(-0.5, 1.05, 0);
+    minerArmR = new THREE.Mesh(armGeo, skinMat);
+    minerArmR.position.set(0.5, 1.05, 0);
+    group.add(minerArmL, minerArmR);
+
+    const pickGeo = new THREE.BoxGeometry(0.9, 0.12, 0.12);
+    const pickMat = new THREE.MeshStandardMaterial({ color: 0xb3b3b3, metalness: 0.8, roughness: 0.3 });
+    pickaxeMesh = new THREE.Mesh(pickGeo, pickMat);
+    pickaxeMesh.position.set(0.6, 0, 0);
+    minerArmR.add(pickaxeMesh);
+
+    group.position.set(-2.5, 0.4, 2.3);
+    group.rotation.y = -Math.PI / 4;
+    return group;
+  }
+
+  function createOreBlock(type, depth) {
+    let mat;
+    let geo;
+    if (type === "gold") {
+      mat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0x854d0e, metalness: 0.6, roughness: 0.3 });
+      geo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+    } else if (type === "oil") {
+      mat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.9, roughness: 0.12 });
+      geo = new THREE.SphereGeometry(0.35, 8, 6);
+    } else {
+      mat = new THREE.MeshStandardMaterial({ color: 0x7dd3fc, emissive: 0x38bdf8, roughness: 0.2, transparent: true, opacity: 0.95 });
+      geo = new THREE.OctahedronGeometry(0.45, 0);
+    }
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set((Math.random() - 0.5) * 3.8, -depth * 0.2 + (Math.random() - 0.5) * 0.8, (Math.random() > 0.5 ? 2.2 : -2.2));
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    shaftGroup.add(mesh);
+    oreDecorations.push({ mesh, depth });
+  }
+
+  function populateOreDecorations() {
+    oreDecorations.forEach((o) => shaftGroup.remove(o.mesh));
+    oreDecorations = [];
+    for (let i = 0; i < 35; i++) {
+      createOreBlock("gold", 5 + Math.random() * 80);
+    }
+    for (let i = 0; i < 25; i++) {
+      createOreBlock("oil", 30 + Math.random() * 140);
+    }
+    for (let i = 0; i < 18; i++) {
+      createOreBlock("gem", 60 + Math.random() * 220);
+    }
+  }
 
   function initThree() {
     const canvas = document.getElementById("mine-canvas");
@@ -952,41 +1328,74 @@
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setSize(rect.width, rect.height);
     renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    renderer.autoClear = false;
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x020617);
+    scene.background = new THREE.Color(0x0b1220);
+    scene.fog = new THREE.Fog(0x020617, 14, 85);
 
-    camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.1, 200);
+    camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.1, 300);
     camera.position.set(8, 6, 10);
     camera.lookAt(0, 0, 0);
 
-    const ambient = new THREE.AmbientLight(0x888888);
-    scene.add(ambient);
+    minimapCamera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 80);
+    minimapCamera.position.set(0, 20, 0);
+    minimapCamera.lookAt(0, 0, 0);
 
-    const dirLight = new THREE.DirectionalLight(0xfff2cc, 1.2);
-    dirLight.position.set(4, 10, 6);
+    const hemi = new THREE.HemisphereLight(0x9cc5ff, 0x2e1b0f, 1.2);
+    scene.add(hemi);
+    const dirLight = new THREE.DirectionalLight(0xfff2cc, 1.4);
+    dirLight.position.set(6, 12, 6);
     scene.add(dirLight);
+    const point = new THREE.PointLight(0xfacc15, 1.3, 18);
+    point.position.set(-1, 0.5, 1);
+    scene.add(point);
 
-    const groundGeo = new THREE.PlaneGeometry(20, 20);
+    const groundGeo = new THREE.PlaneGeometry(30, 30);
     const groundMat = new THREE.MeshStandardMaterial({
-      color: 0x2c1b10,
-      roughness: 0.9,
+      color: 0x3b2f26,
+      roughness: 0.95,
       metalness: 0.05,
+      map: createGroundTexture(),
     });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = 0;
     scene.add(ground);
 
-    const shaftGeo = new THREE.BoxGeometry(4, 40, 4);
-    const shaftMat = new THREE.MeshStandardMaterial({
+    shaftGroup = new THREE.Group();
+    const wallMat = new THREE.MeshStandardMaterial({
       color: 0x111827,
       roughness: 0.8,
-      metalness: 0.1,
+      metalness: 0.15,
     });
-    shaftMesh = new THREE.Mesh(shaftGeo, shaftMat);
-    shaftMesh.position.set(0, -20, 0);
-    scene.add(shaftMesh);
+    const wallMatDeep = new THREE.MeshStandardMaterial({
+      color: 0x0b1324,
+      roughness: 0.85,
+      metalness: 0.18,
+    });
+    const wallGeoX = new THREE.BoxGeometry(8, 180, 1);
+    const wallGeoZ = new THREE.BoxGeometry(1, 180, 8);
+    const wall1 = new THREE.Mesh(wallGeoX, wallMat);
+    wall1.position.set(0, -90, -2.7);
+    const wall2 = new THREE.Mesh(wallGeoX, wallMatDeep);
+    wall2.position.set(0, -90, 2.7);
+    const wall3 = new THREE.Mesh(wallGeoZ, wallMatDeep);
+    wall3.position.set(-2.7, -90, 0);
+    const wall4 = new THREE.Mesh(wallGeoZ, wallMat);
+    wall4.position.set(2.7, -90, 0);
+    shaftGroup.add(wall1, wall2, wall3, wall4);
+
+    const rimGeo = new THREE.BoxGeometry(6.4, 0.4, 6.4);
+    const rim = new THREE.Mesh(rimGeo, new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.7 }));
+    rim.position.set(0, 0.2, 0);
+    shaftGroup.add(rim);
+    scene.add(shaftGroup);
+
+    populateOreDecorations();
 
     const drillGroup = new THREE.Group();
     const bodyGeo = new THREE.CylinderGeometry(0.6, 0.6, 1.8, 16);
@@ -1004,6 +1413,7 @@
       color: 0xfacc15,
       metalness: 0.9,
       roughness: 0.2,
+      emissive: 0x443c0f,
     });
     const bit = new THREE.Mesh(bitGeo, bitMat);
     bit.position.y = 0.4;
@@ -1014,6 +1424,9 @@
     scene.add(drillGroup);
     drillMesh = drillGroup;
 
+    minerGroup = buildMiner();
+    scene.add(minerGroup);
+
     window.addEventListener("resize", () => {
       const r = canvas.getBoundingClientRect();
       camera.aspect = r.width / r.height;
@@ -1022,32 +1435,157 @@
     });
   }
 
+  function spawnDust() {
+    if (!drillMesh) return;
+    const origin = drillMesh.position.clone();
+    for (let i = 0; i < 8; i++) {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.08, 5, 5), dustMaterial);
+      mesh.position.copy(origin);
+      mesh.position.x += (Math.random() - 0.5) * 0.8;
+      mesh.position.z += (Math.random() - 0.5) * 0.8;
+      shaftGroup.add(mesh);
+      dustParticles.push({
+        mesh,
+        vel: new THREE.Vector3((Math.random() - 0.5) * 1.4, 1 + Math.random() * 1.5, (Math.random() - 0.5) * 1.4),
+        life: 0.9,
+      });
+    }
+  }
+
+  function updateDust(dt) {
+    dustParticles = dustParticles.filter((p) => {
+      p.life -= dt;
+      p.mesh.position.addScaledVector(p.vel, dt);
+      p.vel.y -= dt * 2.5;
+      if (p.life <= 0) {
+        shaftGroup.remove(p.mesh);
+        return false;
+      }
+      return true;
+    });
+  }
+
+  function updateOreVisibility() {
+    oreDecorations.forEach((o) => {
+      o.mesh.visible = state.depth + 2 >= o.depth;
+    });
+  }
+
+  function projectToScreen(pos) {
+    if (!camera || !renderer) return { x: 0, y: 0 };
+    const rect = renderer.domElement.getBoundingClientRect();
+    tempVec.copy(pos).project(camera);
+    return {
+      x: (tempVec.x * 0.5 + 0.5) * rect.width,
+      y: (-tempVec.y * 0.5 + 0.5) * rect.height,
+    };
+  }
+
+  function spawnFloatingTextFromGains(gains) {
+    if (!floatingContainer) return;
+    const pos = drillMesh ? drillMesh.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3();
+    const screen = projectToScreen(pos);
+    const entries = [];
+    if (gains.moneyGain > 0) entries.push({ text: `+${gains.moneyGain.toFixed(1)} 💰`, color: "#facc15" });
+    if (gains.goldGain > 0.2) entries.push({ text: `+${gains.goldGain.toFixed(1)} 🪙`, color: "#fbbf24" });
+    if (gains.oilGain > 0.2) entries.push({ text: `+${gains.oilGain.toFixed(1)} 🛢️`, color: "#cbd5f5" });
+    if (gains.gemGain > 0) entries.push({ text: `+${gains.gemGain.toFixed(2)} 💎`, color: "#7dd3fc" });
+
+    entries.forEach((entry, idx) => {
+      const el = document.createElement("div");
+      el.className = "floating-text";
+      el.style.left = `${screen.x}px`;
+      el.style.top = `${screen.y - idx * 12}px`;
+      el.style.color = entry.color;
+      el.textContent = entry.text;
+      floatingContainer.appendChild(el);
+      requestAnimationFrame(() => {
+        el.style.opacity = 1;
+        el.style.transform = `translate(-50%, -60%) translateY(-10px)`;
+      });
+      setTimeout(() => {
+        el.style.opacity = 0;
+        el.remove();
+      }, 900);
+    });
+  }
+
+  function animateMiner(dt) {
+    if (!minerGroup) return;
+    if (minerDigTimer > 0) {
+      minerDigTimer -= dt;
+      const swing = Math.sin(Math.max(minerDigTimer, 0) * Math.PI * 6) * 0.9;
+      minerArmR.rotation.z = -swing;
+      minerArmL.rotation.z = swing * 0.4;
+      minerGroup.position.x = -2.5 + swing * 0.05;
+    } else {
+      autoDigTimer += dt * (1 + state.autoRate * 0.05);
+      const swing = Math.sin(autoDigTimer * 2) * 0.2;
+      minerArmR.rotation.z = swing;
+      minerArmL.rotation.z = -swing * 0.5;
+    }
+  }
+
   function updateThree(dt) {
     if (!scene || !camera || !renderer) return;
 
-    const maxVisualDepth = 100;
-    const depthRatio = Math.min(1, state.depth / maxVisualDepth);
-    const baseY = 6;
-    camera.position.y = baseY - depthRatio * 12;
-    camera.lookAt(0, 0, 0);
+    updateOreVisibility();
+    updateDust(dt);
+    animateMiner(dt);
 
+    const maxVisualDepth = 200;
+    const depthRatio = Math.min(1, state.depth / maxVisualDepth);
+    depthTargetY = -Math.min(state.depth * 0.18, 55);
+
+    const desiredCamY = 6 + depthTargetY * 0.1;
+    camera.position.y = THREE.MathUtils.lerp(camera.position.y, desiredCamY, 0.08);
+    camera.position.x = THREE.MathUtils.lerp(camera.position.x, 7.5, 0.08);
+    camera.position.z = THREE.MathUtils.lerp(camera.position.z, 9.5, 0.08);
+    const lookTargetY = depthTargetY * 0.08;
+    camera.lookAt(0, lookTargetY, 0);
+
+    minimapCamera.position.y = THREE.MathUtils.lerp(minimapCamera.position.y, 18 + depthRatio * 2, 0.1);
+
+    if (shaftGroup) {
+      shaftGroup.position.y = THREE.MathUtils.lerp(shaftGroup.position.y || 0, depthTargetY, 0.15);
+    }
     if (drillMesh) {
-      drillMesh.rotation.y += dt * 2 * (1 + state.autoRate * 0.2);
+      drillMesh.position.y = THREE.MathUtils.lerp(drillMesh.position.y, depthTargetY + 0.4, 0.2);
+      drillMesh.rotation.y += dt * 2 * (1 + state.autoRate * 0.15);
       if (digPulse > 0) {
-        const intensity = digPulse * 0.2;
-        drillMesh.position.y = 0.1 + Math.sin(digPulse * Math.PI * 4) * 0.2;
-        camera.position.x = 8 + (Math.random() - 0.5) * intensity;
-        camera.position.z = 10 + (Math.random() - 0.5) * intensity;
-        digPulse -= dt * 2.5;
-        if (digPulse < 0) digPulse = 0;
-      } else {
-        drillMesh.position.y = 0.1;
-        camera.position.x = 8;
-        camera.position.z = 10;
+        drillMesh.position.y += Math.sin((1 - digPulse) * Math.PI * 3) * 0.2;
       }
     }
+    if (minerGroup) {
+      minerGroup.position.y = drillMesh.position.y + 0.3;
+    }
 
+    if (digPulse > 0) {
+      digPulse -= dt * 2.5;
+      if (digPulse < 0) digPulse = 0;
+    }
+    if (shakeTime > 0) {
+      shakeTime -= dt;
+      const s = (shakeTime / Math.max(shakeStrength, 0.0001)) * 0.2 * shakeStrength;
+      camera.position.x += (Math.sin(performance.now() * 0.04) * s) / 2;
+      camera.position.z += (Math.cos(performance.now() * 0.05) * s) / 2;
+    }
+
+    const pr = renderer.getPixelRatio();
+    const viewW = renderer.domElement.clientWidth * pr;
+    const viewH = renderer.domElement.clientHeight * pr;
+
+    renderer.setViewport(0, 0, viewW, viewH);
+    renderer.setScissor(0, 0, viewW, viewH);
+    renderer.setScissorTest(true);
+    renderer.clear();
     renderer.render(scene, camera);
+
+    const miniW = viewW * 0.32;
+    const miniH = viewH * 0.32;
+    renderer.setViewport(viewW - miniW - 10 * pr, viewH - miniH - 10 * pr, miniW, miniH);
+    renderer.setScissor(viewW - miniW - 10 * pr, viewH - miniH - 10 * pr, miniW, miniH);
+    renderer.render(scene, minimapCamera);
   }
 
   // ===================== Supabase sync =====================
@@ -1281,6 +1819,7 @@
 
   // ===================== Events =====================
   btnStartSolo.addEventListener("click", () => {
+    markInteraction();
     const name = playerNameInput.value.trim();
     if (!name) {
       setupErrorEl.textContent = "Lütfen ismini yaz.";
@@ -1292,6 +1831,7 @@
   });
 
   btnJoinRoom.addEventListener("click", () => {
+    markInteraction();
     const name = playerNameInput.value.trim();
     const code = roomCodeInput.value.trim().toUpperCase();
     if (!name) {
@@ -1309,6 +1849,7 @@
   });
 
   btnCreateRoom.addEventListener("click", () => {
+    markInteraction();
     const name = playerNameInput.value.trim();
     if (!name) {
       setupErrorEl.textContent = "Önce ismini yaz, sonra oda oluştur.";
@@ -1324,14 +1865,24 @@
 
   btnDig.addEventListener("click", () => {
     if (!sessionStarted) return;
-    applyMining(state.perClick, false);
+    markInteraction();
+    const gains = applyMining(state.perClick, false);
+    minerDigTimer = 0.4;
     digPulse = 1;
+    shakeStrength = Math.min(1.2, 0.1 + state.perClick * 0.04);
+    shakeTime = 0.35;
+    spawnDust();
+    spawnFloatingTextFromGains(gains);
+    soundManager.playDig();
+    if (gains.moneyGain > 8) soundManager.playMoney();
+    if (gains.gemGain > 0) soundManager.playGem();
     updateStatsUI();
     saveLocalState();
   });
 
   btnUpgradeAxe.addEventListener("click", () => {
     if (!sessionStarted) return;
+    markInteraction();
     const cost = axeCost(state.axeLevel);
     if (!spend(cost)) {
       log("Yeterli paran yok (Kazma yükseltme).");
@@ -1340,12 +1891,14 @@
     state.axeLevel += 1;
     recalcDerivedStats();
     log(`Kazma seviyesi ${state.axeLevel} oldu.`);
+    soundManager.playUpgrade();
     updateStatsUI();
     saveLocalState();
   });
 
   btnHireMiner.addEventListener("click", () => {
     if (!sessionStarted) return;
+    markInteraction();
     const cost = minerCost(state.miners);
     if (!spend(cost)) {
       log("Yeterli paran yok (İşçi kiralama).");
@@ -1354,12 +1907,14 @@
     state.miners += 1;
     recalcDerivedStats();
     log(`Yeni işçi işe alındı. Toplam: ${state.miners}.`);
+    soundManager.playUpgrade();
     updateStatsUI();
     saveLocalState();
   });
 
   btnUpgradeDrill.addEventListener("click", () => {
     if (!sessionStarted) return;
+    markInteraction();
     const cost = drillCost(state.drillLevel);
     if (!spend(cost)) {
       log("Yeterli paran yok (Matkap kulesi).");
@@ -1368,6 +1923,66 @@
     state.drillLevel += 1;
     recalcDerivedStats();
     log(`Matkap seviyesi ${state.drillLevel} oldu.`);
+    soundManager.playUpgrade();
+    updateStatsUI();
+    saveLocalState();
+  });
+
+  btnUpgradeRadar.addEventListener("click", () => {
+    if (!sessionStarted) return;
+    markInteraction();
+    const cost = radarCost(state.radarLevel);
+    if (!spend(cost)) {
+      log("Yeterli paran yok (Jeo-Radar).");
+      return;
+    }
+    state.radarLevel += 1;
+    recalcDerivedStats();
+    log(`Jeo-radar seviyesi ${state.radarLevel} oldu.`);
+    soundManager.playUpgrade();
+    updateStatsUI();
+    saveLocalState();
+  });
+
+  btnUpgradeEfficiency.addEventListener("click", () => {
+    if (!sessionStarted) return;
+    markInteraction();
+    const cost = efficiencyCost(state.efficiencyLevel);
+    if (!spend(cost)) {
+      log("Yeterli paran yok (Verimlilik).");
+      return;
+    }
+    state.efficiencyLevel += 1;
+    recalcDerivedStats();
+    log(`Çıkarma verimliliği ${state.efficiencyLevel} oldu.`);
+    soundManager.playUpgrade();
+    updateStatsUI();
+    saveLocalState();
+  });
+
+  btnToggleSfx.addEventListener("click", () => {
+    markInteraction();
+    soundManager.toggleMute();
+    saveLocalState();
+  });
+
+  btnToggleMusic.addEventListener("click", () => {
+    markInteraction();
+    soundManager.toggleMusic();
+    saveLocalState();
+  });
+
+  btnCharge.addEventListener("click", () => {
+    if (!sessionStarted) return;
+    markInteraction();
+    if (nextChargeReadyInMs() > 0 && !isChargeActive()) return;
+    const duration = 5000;
+    const cooldown = Math.max(8000, 16000 - state.drillLevel * 400 - state.radarLevel * 200);
+    state.chargeActiveUntil = Date.now() + duration;
+    state.chargeReadyAt = Date.now() + cooldown;
+    recalcDerivedStats();
+    log("Patlayıcı yük devrede! Kazançlar katlandı.");
+    soundManager.playUpgrade();
     updateStatsUI();
     saveLocalState();
   });
@@ -1396,8 +2011,21 @@
     lastFrameTime = now;
 
     if (sessionStarted) {
+      const chargeActive = isChargeActive();
+      if (prevChargeActive && !chargeActive) {
+        recalcDerivedStats();
+      }
+      prevChargeActive = chargeActive;
+
       if (state.autoRate > 0) {
-        applyMining(state.autoRate * dt, true);
+        const gains = applyMining(state.autoRate * dt, true);
+        minerDigTimer = Math.max(minerDigTimer, 0.18);
+        autoSoundTimer -= dt;
+        if (autoSoundTimer <= 0) {
+          soundManager.playDig();
+          autoSoundTimer = Math.max(0.6, 1.5 - state.autoRate * 0.05);
+        }
+        if (gains.gemGain > 0 && Math.random() < 0.15) soundManager.playGem();
       }
       updateStatsUI();
     }
@@ -1421,10 +2049,13 @@
   });
 
   // ===================== Init =====================
+  window.addEventListener("pointerdown", () => markInteraction(), { once: true });
+
   loadLocalState();
   updateOnlineStatusUI();
   recalcDerivedStats();
   updateStatsUI();
+  soundManager.updateMusicState();
   if (state.playerName) {
     playerNameInput.value = state.playerName;
   }
