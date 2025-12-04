@@ -430,6 +430,44 @@
       box-shadow: 0 14px 36px rgba(0, 0, 0, 0.7);
     }
 
+    .camera-panel {
+      margin-top: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      background: rgba(8, 15, 28, 0.9);
+      padding: 10px 12px;
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.7);
+    }
+
+    .camera-panel .panel-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--text);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .camera-buttons {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+    }
+
+    .camera-buttons button {
+      background: rgba(56, 189, 248, 0.12);
+      color: #e0f2fe;
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      box-shadow: none;
+    }
+
+    .camera-buttons button:active {
+      transform: translateY(1px) scale(0.99);
+      box-shadow: 0 4px 10px rgba(56, 189, 248, 0.25);
+    }
+
     .dig-row {
       display: flex;
       flex-wrap: wrap;
@@ -835,6 +873,16 @@
             <div class="floating-container" id="floating-container"></div>
           </div>
 
+          <div id="camera-panel" class="camera-panel">
+            <div class="panel-title">🎥 Cameras</div>
+            <div class="camera-buttons">
+              <button data-cam="overview">Overview</button>
+              <button data-cam="miner">Miner Cam</button>
+              <button data-cam="truck">Truck Cam</button>
+              <button data-cam="deep">Deep Mine</button>
+            </div>
+          </div>
+
           <div class="controls-card">
             <div class="dig-row">
               <button id="btn-dig">⛏️ Dig!</button>
@@ -1227,6 +1275,7 @@
   const btnViewGlobal = document.getElementById("btn-view-global");
   const btnViewRoom = document.getElementById("btn-view-room");
   const btnRefreshLeaderboard = document.getElementById("btn-refresh-leaderboard");
+  const cameraButtons = document.querySelectorAll('#camera-panel button[data-cam]');
 
   const translations = {
     en: {
@@ -1630,6 +1679,19 @@
     state.autoRate = isCollapseActive() ? 0 : autoBase;
   }
 
+  function miningBoostMultiplier() {
+    return minerBoostTimer > 0 ? 2 : 1;
+  }
+
+  function updateBoostTimers(dt) {
+    if (minerBoostTimer > 0) {
+      minerBoostTimer = Math.max(0, minerBoostTimer - dt);
+    }
+    if (truckBoostTimer > 0) {
+      truckBoostTimer = Math.max(0, truckBoostTimer - dt);
+    }
+  }
+
   function applyMining(amount, isAuto = false) {
     const mine = getCurrentMine();
     if (!mine || amount <= 0)
@@ -1807,16 +1869,23 @@
   let autoDigTimer = 0;
   let autoSoundTimer = 0;
   let depthTargetY = 0;
-  let targetYaw = -0.6;
-  let currentYaw = -0.6;
-  let targetPitch = -0.22;
-  let currentPitch = -0.22;
-  let targetRadius = 12;
-  let currentRadius = 12;
-  let cameraTargetY = 0;
+  let activeCameraMode = "overview";
+  let cameraTarget = null;
+  let deepCameraAnchor = null;
+  let cameraDistance = 14;
+  let cameraYaw = Math.PI * 0.25;
+  let cameraPitch = -0.25;
   let isDragging = false;
   let dragStart = { x: 0, y: 0 };
+  let lastPinchDistance = 0;
+  let minerBoostTimer = 0;
+  let truckBoostTimer = 0;
   const tempVec = new THREE.Vector3();
+  const cameraTargetVec = new THREE.Vector3();
+  const cameraOffset = new THREE.Vector3();
+  const desiredCameraPos = new THREE.Vector3();
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
 
   const dustMaterial = new THREE.MeshStandardMaterial({
     color: 0xc4b5a1,
@@ -2037,8 +2106,8 @@
     scene.fog = new THREE.Fog(0x0b1220, 12, 90);
 
     camera = new THREE.PerspectiveCamera(65, w / h, 0.1, 300);
-    camera.position.set(8, 5, 12);
-    camera.lookAt(0, -10, 0);
+    camera.fov = 55;
+    camera.updateProjectionMatrix();
 
     minimapCamera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 80);
     minimapCamera.position.set(0, 20, 0);
@@ -2065,6 +2134,7 @@
     scene.add(ground);
 
     createRailsAndCart(scene);
+    if (cartMesh) cartMesh.name = "truck";
 
     shaftGroup = new THREE.Group();
     const strataTex = createStrataTexture();
@@ -2138,7 +2208,12 @@
     scene.add(minimapMarker);
 
     minerGroup = buildMiner();
+    minerGroup.name = "miner";
     scene.add(minerGroup);
+
+    deepCameraAnchor = new THREE.Object3D();
+    deepCameraAnchor.position.set(0, -14, 0);
+    scene.add(deepCameraAnchor);
 
     window.addEventListener("resize", () => {
       const w2 = canvas.clientWidth;
@@ -2157,8 +2232,9 @@
       const dx = e.clientX - dragStart.x;
       const dy = e.clientY - dragStart.y;
       dragStart = { x: e.clientX, y: e.clientY };
-      targetYaw = THREE.MathUtils.clamp(targetYaw - dx * 0.003, -Math.PI * 0.8, Math.PI * 0.2);
-      targetPitch = THREE.MathUtils.clamp(targetPitch - dy * 0.002, -0.85, 0.45);
+      const rotateSpeed = 0.005;
+      cameraYaw -= dx * rotateSpeed;
+      cameraPitch = THREE.MathUtils.clamp(cameraPitch - dy * rotateSpeed, -1.2, 0.45);
     });
     window.addEventListener("pointerup", () => {
       isDragging = false;
@@ -2168,10 +2244,49 @@
       "wheel",
       (e) => {
         e.preventDefault();
-        targetRadius = THREE.MathUtils.clamp(targetRadius + e.deltaY * 0.004, 8, 18);
+        const zoomSpeed = 0.0015;
+        cameraDistance *= 1 + e.deltaY * zoomSpeed;
+        cameraDistance = THREE.MathUtils.clamp(cameraDistance, 4, 22);
       },
       { passive: false }
     );
+
+    canvas.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        lastPinchDistance = getTouchDistance(e.touches);
+      } else {
+        isDragging = true;
+        dragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    });
+
+    canvas.addEventListener("touchmove", (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dist = getTouchDistance(e.touches);
+        if (lastPinchDistance > 0) {
+          const delta = dist - lastPinchDistance;
+          cameraDistance *= 1 - delta * 0.001;
+          cameraDistance = THREE.MathUtils.clamp(cameraDistance, 4, 22);
+        }
+        lastPinchDistance = dist;
+      } else if (isDragging && e.touches.length === 1) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - dragStart.x;
+        const dy = touch.clientY - dragStart.y;
+        dragStart = { x: touch.clientX, y: touch.clientY };
+        const rotateSpeed = 0.006;
+        cameraYaw -= dx * rotateSpeed;
+        cameraPitch = THREE.MathUtils.clamp(cameraPitch - dy * rotateSpeed, -1.2, 0.45);
+      }
+    });
+
+    canvas.addEventListener("touchend", () => {
+      isDragging = false;
+      lastPinchDistance = 0;
+    });
+
+    canvas.addEventListener("click", onCanvasClick);
   }
 
   function spawnDust() {
@@ -2215,7 +2330,8 @@
 
   function animateCart(dt) {
     if (!cartMesh) return;
-    cartOffset += dt * cartDirection * 2.1;
+    const speedBoost = truckBoostTimer > 0 ? 1.7 : 1;
+    cartOffset += dt * cartDirection * 2.1 * speedBoost;
     if (cartOffset > 3.5 || cartOffset < -3.5) {
       cartDirection *= -1;
       cartOffset = THREE.MathUtils.clamp(cartOffset, -3.5, 3.5);
@@ -2305,6 +2421,103 @@
     }
   }
 
+  function clampCameraValues() {
+    cameraPitch = THREE.MathUtils.clamp(cameraPitch, -1.2, 0.45);
+    cameraDistance = THREE.MathUtils.clamp(cameraDistance, 4, 22);
+  }
+
+  function setCameraMode(mode) {
+    activeCameraMode = mode;
+    switch (mode) {
+      case "miner":
+        cameraTarget = minerGroup;
+        cameraDistance = 8;
+        cameraYaw = Math.PI * 0.4;
+        cameraPitch = -0.2;
+        break;
+      case "truck":
+        cameraTarget = cartMesh;
+        cameraDistance = 7;
+        cameraYaw = Math.PI * 0.3;
+        cameraPitch = -0.15;
+        break;
+      case "deep":
+        cameraTarget = deepCameraAnchor || minerGroup;
+        cameraDistance = 10;
+        cameraYaw = Math.PI * 0.6;
+        cameraPitch = -0.3;
+        break;
+      case "overview":
+      default:
+        cameraTarget = null;
+        cameraDistance = 18;
+        cameraYaw = Math.PI * 0.25;
+        cameraPitch = -0.25;
+        break;
+    }
+    clampCameraValues();
+  }
+
+  function updateCamera() {
+    if (!camera) return;
+    clampCameraValues();
+    const lerpFactor = 0.1;
+    let targetPos = cameraTargetVec;
+
+    if (cameraTarget && cameraTarget.getWorldPosition) {
+      cameraTarget.getWorldPosition(targetPos);
+    } else {
+      targetPos.set(0, depthTargetY * 0.25 - 4, 0);
+    }
+
+    cameraOffset.set(
+      Math.cos(cameraYaw) * cameraDistance,
+      Math.sin(cameraPitch) * cameraDistance,
+      Math.sin(cameraYaw) * cameraDistance
+    );
+
+    desiredCameraPos.copy(targetPos).add(cameraOffset);
+    camera.position.lerp(desiredCameraPos, lerpFactor);
+    camera.lookAt(targetPos);
+  }
+
+  function getTouchDistance(touches) {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function handleSceneClick(obj) {
+    let node = obj;
+    let clickedMiner = false;
+    let clickedTruck = false;
+    while (node) {
+      if (node === minerGroup) clickedMiner = true;
+      if (node === cartMesh) clickedTruck = true;
+      node = node.parent;
+    }
+
+    if (clickedMiner) {
+      minerBoostTimer = 2.0;
+      log("Miner is digging faster for a moment!");
+    } else if (clickedTruck) {
+      truckBoostTimer = 2.0;
+      log("Truck speed boosted! Hauling faster.");
+    }
+  }
+
+  function onCanvasClick(e) {
+    if (!scene || !camera || !renderer) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const intersects = raycaster.intersectObjects(scene.children, true);
+    if (intersects.length === 0) return;
+    handleSceneClick(intersects[0].object);
+  }
+
   function updateThree(dt) {
     if (!scene || !camera || !renderer) return;
     const mine = getCurrentMine();
@@ -2319,17 +2532,10 @@
     const depthRatio = Math.min(1, depthVal / maxVisualDepth);
     depthTargetY = -Math.min(depthVal * 0.16, 55);
 
-    currentYaw = THREE.MathUtils.lerp(currentYaw, targetYaw, 0.08);
-    currentPitch = THREE.MathUtils.lerp(currentPitch, targetPitch, 0.08);
-    currentRadius = THREE.MathUtils.lerp(currentRadius, targetRadius, 0.1);
-    const camX = Math.cos(currentYaw) * currentRadius;
-    const camZ = Math.sin(currentYaw) * currentRadius;
-    const camY = 4.5 + depthTargetY * 0.08 + Math.sin(currentPitch) * 2.2;
-    camera.position.set(camX, camY, camZ);
-
-    const focusY = drillMesh ? drillMesh.position.y : depthTargetY * 0.1;
-    cameraTargetY = THREE.MathUtils.lerp(cameraTargetY, focusY, 0.12);
-    camera.lookAt(0, cameraTargetY, 0);
+    if (deepCameraAnchor) {
+      deepCameraAnchor.position.y = depthTargetY - 6;
+    }
+    updateCamera();
 
     minimapCamera.position.y = THREE.MathUtils.lerp(minimapCamera.position.y, 18 + depthRatio * 3, 0.1);
 
@@ -2673,7 +2879,7 @@
       log("Digging during a cave-in is risky, repair first!");
       return;
     }
-    const gains = applyMining(state.perClick, false);
+    const gains = applyMining(state.perClick * miningBoostMultiplier(), false);
     minerDigTimer = 0.4;
     digPulse = 1;
     shakeStrength = Math.min(1.2, 0.1 + state.perClick * 0.04);
@@ -2884,6 +3090,13 @@
     loadLeaderboard();
   });
 
+  cameraButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.getAttribute("data-cam");
+      setCameraMode(mode);
+    });
+  });
+
   btnRepair.addEventListener("click", () => {
     if (!isCollapseActive()) return;
     const cost = { money: 200, oil: 100 };
@@ -2901,6 +3114,8 @@
     const dt = (now - lastFrameTime) / 1000;
     lastFrameTime = now;
 
+    updateBoostTimers(dt);
+
     if (sessionStarted) {
       const chargeActive = isChargeActive();
       if (prevChargeActive && !chargeActive) {
@@ -2911,7 +3126,7 @@
 
       const collapseActive = isCollapseActive();
       if (state.autoRate > 0 && !collapseActive) {
-        const gains = applyMining(state.autoRate * dt, true);
+        const gains = applyMining(state.autoRate * dt * miningBoostMultiplier(), true);
         minerDigTimer = Math.max(minerDigTimer, 0.18);
         autoSoundTimer -= dt;
         if (autoSoundTimer <= 0) {
@@ -2962,6 +3177,7 @@
   }
 
   initThree();
+  setCameraMode("overview");
   requestAnimationFrame(loop);
 </script>
 </body>
