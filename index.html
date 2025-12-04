@@ -1,47 +1,65 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>DeepMine Online · Altın & Petrol Madenciliği</title>
+  <title>DeepMine Online · Mine Builder</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root {
-      --bg: #020617;
-      --panel: #020617;
-      --card: #020617;
+      --bg: #030712;
+      --panel: #0b1220;
+      --card: #0f172a;
       --accent: #38bdf8;
       --accent-soft: rgba(56, 189, 248, 0.2);
       --danger: #f97373;
       --text: #e5e7eb;
       --text-soft: #9ca3af;
       --radius: 18px;
+      --glow: radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.08), transparent 35%),
+        radial-gradient(circle at 80% 0%, rgba(249, 115, 22, 0.12), transparent 30%);
     }
 
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-      background: radial-gradient(circle at top, #020617, #000 55%);
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      background: radial-gradient(circle at top, #0b1220, #020617 55%);
       color: var(--text);
       display: flex;
       justify-content: center;
       align-items: stretch;
       min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    .background-stars {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.08), transparent 35%),
+        radial-gradient(circle at 80% 10%, rgba(34, 197, 94, 0.06), transparent 30%),
+        radial-gradient(circle at 40% 70%, rgba(239, 68, 68, 0.07), transparent 40%);
+      opacity: 0.7;
+      pointer-events: none;
+      filter: blur(32px);
+      z-index: 0;
     }
 
     .app {
-      max-width: 1100px;
+      max-width: 1200px;
       width: 100%;
-      padding: 24px 16px 32px;
+      padding: 32px 18px 42px;
+      position: relative;
+      z-index: 1;
     }
 
     .card-shell {
       position: relative;
-      background: radial-gradient(circle at top, #020617, #020617 40%), var(--card);
+      background: linear-gradient(145deg, rgba(17, 24, 39, 0.8), rgba(8, 47, 73, 0.8)), var(--card);
       border-radius: var(--radius);
-      padding: 20px;
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.9);
+      padding: 22px;
+      box-shadow: 0 20px 45px rgba(15, 23, 42, 0.9);
       border: 1px solid rgba(75, 85, 99, 0.4);
       backdrop-filter: blur(24px);
       overflow: hidden;
@@ -54,11 +72,10 @@
       position: absolute;
       inset: 0;
       border-radius: var(--radius);
-      background: radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.08), transparent 35%),
-                  radial-gradient(circle at 80% 0%, rgba(249, 115, 22, 0.12), transparent 30%);
+      background: var(--glow);
       pointer-events: none;
-      opacity: 0.6;
-      animation: panelGlow 12s ease-in-out infinite;
+      opacity: 0.75;
+      animation: panelGlow 14s ease-in-out infinite;
       z-index: 0;
     }
 
@@ -201,13 +218,14 @@
 
     .mine-panel {
       border-radius: 16px;
-      border: 1px solid rgba(31, 41, 55, 0.9);
-      background: radial-gradient(circle at 20% 0%, #0f172a, #020617 65%);
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      background: radial-gradient(circle at 30% -10%, #1d2536, #0a1120 55%, #05070f);
       padding: 10px;
       position: relative;
       overflow: hidden;
       box-shadow: 0 18px 36px rgba(0, 0, 0, 0.8);
       min-height: 260px;
+      isolation: isolate;
     }
 
     #mine-canvas {
@@ -216,22 +234,43 @@
       display: block;
       border-radius: 14px;
       background: linear-gradient(180deg, #0b1220, #0a1020 60%, #060914);
+      filter: saturate(1.05);
+    }
+
+    .mine-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(14, 116, 144, 0.15), transparent 30%, rgba(17, 24, 39, 0.5));
+      z-index: 0;
+      pointer-events: none;
     }
 
     .minimap-overlay {
       position: absolute;
       top: 12px;
       right: 12px;
-      width: 140px;
-      height: 100px;
+      width: 160px;
+      height: 110px;
       border: 1px solid rgba(148, 163, 184, 0.6);
-      border-radius: 10px;
+      border-radius: 12px;
       pointer-events: none;
-      background: radial-gradient(circle at 50% 20%, rgba(59, 130, 246, 0.1), rgba(14, 165, 233, 0.04));
-      box-shadow: inset 0 0 12px rgba(14, 165, 233, 0.25);
+      background: rgba(8, 15, 28, 0.9);
+      box-shadow: inset 0 0 14px rgba(14, 165, 233, 0.35);
       color: var(--text-soft);
       font-size: 0.75rem;
       padding: 4px 6px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 4px;
+      backdrop-filter: blur(4px);
+    }
+
+    #minimap-map {
+      width: 100%;
+      height: 90px;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.6));
     }
 
     .floating-container {
@@ -270,6 +309,19 @@
       opacity: 0;
       transition: transform 0.8s ease-out, opacity 0.8s ease-out;
       white-space: nowrap;
+    }
+
+    .dig-ripple {
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(248, 250, 252, 0.45), rgba(59, 130, 246, 0.05));
+      opacity: 0.25;
+      transform: translate(-50%, -50%) scale(0.2);
+      pointer-events: none;
+      filter: blur(1px);
+      animation: ripplePulse 1s ease-out forwards;
     }
 
     .sound-controls {
@@ -682,6 +734,11 @@
 
     .log-line { margin-bottom: 2px; }
 
+    @keyframes ripplePulse {
+      0% { opacity: 0.35; transform: translate(-50%, -50%) scale(0.2); }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(1.35); }
+    }
+
     @keyframes panelGlow {
       0%, 100% { opacity: 0.5; }
       50% { opacity: 0.9; }
@@ -689,23 +746,24 @@
   </style>
 </head>
 <body>
+<div class="background-stars"></div>
 <div class="app">
   <div class="card-shell">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
       <div>
         <h1>
           <span class="icon">⛏️</span>
           <span>DeepMine Online</span>
         </h1>
-        <div class="subtitle">
-          Tıkla, kaz, altın ve petrol çıkar. Kazmanı geliştir, işçi ve matkap al,
-          sonra her şeyi otomatiğe bağla. İstersen global, istersen sadece arkadaşlarınla aynı odada yarış.
+        <div class="subtitle" id="subtitle">
+          Watch your miners dig through layered rock, upgrade drills and tools, and compete on shared rooms or the global board.
         </div>
       </div>
-      <div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button id="btn-language" class="secondary small" aria-label="Change language">🇹🇷 / 🇬🇧</button>
         <div id="online-pill" class="pill">
           <div class="pill-dot"></div>
-          <span id="online-status-text">Online bağlanmaya çalışılıyor...</span>
+          <span id="online-status-text">Connecting...</span>
         </div>
       </div>
     </div>
@@ -714,42 +772,42 @@
     <div id="setup-section" style="margin-top:12px;">
       <div class="setup-grid">
         <div class="setup-card">
-          <div class="section-title">Oyuncu</div>
-          <label for="player-name">İsmin</label>
+          <div class="section-title" id="player-title">Player</div>
+          <label for="player-name" id="name-label">Your name</label>
           <input id="player-name" placeholder="Umut, Nova vs." />
 
           <div class="setup-row">
             <button id="btn-start-solo">
-              🌍 Tek başıma / Global
+              🌍 Solo / Global start
             </button>
           </div>
 
-          <div class="small-note">
-            İstediğin zaman online/leaderboard senkronize etmeye çalışır. Bağlantı yoksa
-            oyun tamamen cihazında çalışır.
+          <div class="small-note" id="sync-note">
+            We will sync online/leaderboards when possible. If offline, the game works
+            fully on your device.
           </div>
           <div id="setup-error" class="error"></div>
         </div>
 
         <div class="setup-card">
-          <div class="section-title">Oda (isteğe bağlı)</div>
-          <label for="room-code-input">Mevcut bir odaya katıl</label>
-          <input id="room-code-input" placeholder="Örn: GOLD01" />
+          <div class="section-title" id="room-title">Room (optional)</div>
+          <label for="room-code-input" id="room-join-label">Join an existing room</label>
+          <input id="room-code-input" placeholder="e.g. GOLD01" />
 
           <div class="setup-row">
-            <button id="btn-join-room" class="secondary small">Odaya Katıl</button>
+            <button id="btn-join-room" class="secondary small">Join room</button>
           </div>
 
           <div class="setup-row" style="margin-top:10px;">
             <button id="btn-create-room" class="small">
-              🏠 Yeni Oda Oluştur
+              🏠 Create Room
             </button>
             <span id="created-room-code" class="code-badge" style="display:none;"></span>
           </div>
 
-          <div class="small-note">
-            Oda kodunu arkadaşlarınla paylaş. Onlar da aynı kodla girerse leaderboard sadece
-            o odadaki oyuncuları gösterir.
+          <div class="small-note" id="room-note">
+            Share the room code with friends. With the same code the leaderboard only
+            shows players in that room.
           </div>
         </div>
       </div>
@@ -763,171 +821,177 @@
           <div class="mine-panel">
             <canvas id="mine-canvas"></canvas>
             <div class="depth-hud">
-              <span>Derinlik:</span>
+              <span>Depth:</span>
               <span class="value" id="depth-label">0 m</span>
             </div>
-            <div class="minimap-overlay" aria-hidden="true">Mini-harita</div>
-            <div class="collapse-warning" id="collapse-warning">⚠️ Göçük! İşçiler kaçmaya çalışıyor…</div>
+            <div class="minimap-overlay" aria-hidden="true">
+              <div style="display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:0.76rem;">
+                <span>Minimap</span>
+                <span id="minimap-depth">0 m</span>
+              </div>
+              <canvas id="minimap-map" width="150" height="90"></canvas>
+            </div>
+            <div class="collapse-warning" id="collapse-warning">⚠️ Cave-in! Miners are escaping…</div>
             <div class="floating-container" id="floating-container"></div>
           </div>
 
           <div class="controls-card">
             <div class="dig-row">
-              <button id="btn-dig">⛏️ Kaz!</button>
+              <button id="btn-dig">⛏️ Dig!</button>
               <div class="stat-line">
-                <span>Her tık:</span>
+                <span>Per click:</span>
                 <span class="value" id="per-click-label">1 m</span>
               </div>
               <div class="stat-line">
-                <span>Oto kazma:</span>
-                <span class="value" id="auto-rate-label">0 m/sn</span>
+                <span id="auto-rate-title">Auto-dig:</span>
+                <span class="value" id="auto-rate-label">0 m/s</span>
               </div>
             </div>
 
             <div class="dig-row" style="margin-top:8px; gap:12px; align-items:flex-start;">
-              <button id="btn-charge" class="secondary small">💥 Patlayıcı Yük</button>
+              <button id="btn-charge" class="secondary small">💥 Explosive Charge</button>
               <div class="stat-line">
-                <span>Patlayıcı güç:</span>
-                <span class="value" id="charge-status">Hazır</span>
+                <span>Charge power:</span>
+                <span class="value" id="charge-status">Ready</span>
               </div>
               <div class="stat-line">
-                <span>Bonus çarpan:</span>
+                <span>Bonus multiplier:</span>
                 <span class="value" id="charge-mult">x1.0</span>
               </div>
             </div>
 
             <div class="resource-row">
               <div class="resource-chip">
-                💰 <span>Nakit:</span> <span class="value" id="money-label">0</span>
+                💰 <span>Cash:</span> <span class="value" id="money-label">0</span>
               </div>
               <div class="resource-chip">
-                🪙 <span>Altın:</span> <span class="value" id="gold-label">0</span>
+                🪙 <span>Gold:</span> <span class="value" id="gold-label">0</span>
               </div>
               <div class="resource-chip">
-                🛢️ <span>Petrol:</span> <span class="value" id="oil-label">0</span>
+                🛢️ <span>Oil:</span> <span class="value" id="oil-label">0</span>
               </div>
               <div class="resource-chip">
-                💎 <span>Maden:</span> <span class="value" id="gems-label">0</span>
+                💎 <span>Gems:</span> <span class="value" id="gems-label">0</span>
               </div>
             </div>
 
-            <div class="section-title" style="margin-top:8px;">Madenler</div>
+            <div class="section-title" style="margin-top:8px;">Mines</div>
             <div class="mine-tabs" id="mine-tabs"></div>
 
             <div class="sound-controls">
-              <button id="btn-toggle-sfx" class="toggle-btn active">🔊 Ses Açık</button>
-              <button id="btn-toggle-music" class="toggle-btn">🎵 Müzik Kapalı</button>
+              <button id="btn-toggle-sfx" class="toggle-btn active">🔊 SFX On</button>
+              <button id="btn-toggle-music" class="toggle-btn">🎵 Music Off</button>
             </div>
 
             <div class="event-panel" id="event-panel">
-              <div id="event-label">Göçük yok, kazmaya devam!</div>
+              <div id="event-label">No cave-in, keep digging!</div>
               <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                 <div id="event-timer">–</div>
-                <button id="btn-repair" class="small secondary">Onar (200 💰 + 100 🛢️)</button>
+                <button id="btn-repair" class="small secondary">Repair (200 💰 + 100 🛢️)</button>
               </div>
             </div>
 
             <div class="upgrade-list">
               <div class="upgrade-row">
                 <div class="upgrade-main">
-                  <div class="upgrade-title">Kazmayı Güçlendir</div>
+                  <div class="upgrade-title">Upgrade Pickaxe</div>
                   <div class="upgrade-sub">
-                    Her tık başına derinliği artırır. Seviye:
+                    Increase depth per click. Level:
                     <span id="axe-level-label">1</span>
                   </div>
                 </div>
                 <button id="btn-upgrade-axe" class="small">
-                  Yükselt · <span id="axe-cost-label">10</span> 💰
+                  Upgrade · <span id="axe-cost-label">10</span> 💰
                 </button>
               </div>
 
               <div class="upgrade-row">
                 <div class="upgrade-main">
-                  <div class="upgrade-title">İşçi Kirala</div>
+                  <div class="upgrade-title">Hire Worker</div>
                   <div class="upgrade-sub">
-                    Sürekli kazsın. İşçi:
+                    Hire miners that dig automatically. Workers:
                     <span id="miners-label">0</span>
                   </div>
                 </div>
                 <button id="btn-hire-miner" class="small">
-                  Kirala · <span id="miner-cost-label">25</span> 💰
+                  Hire · <span id="miner-cost-label">25</span> 💰
                 </button>
               </div>
 
               <div class="upgrade-row">
                 <div class="upgrade-main">
-                  <div class="upgrade-title">Matkap Kulesi</div>
+                  <div class="upgrade-title">Drill Tower</div>
                   <div class="upgrade-sub">
-                    Oto kazma hızını ciddi artırır. Seviye:
+                    Boost auto-dig speed. Level:
                     <span id="drill-level-label">0</span>
                   </div>
                 </div>
                 <button id="btn-upgrade-drill" class="small">
-                  Kur · <span id="drill-cost-label">100</span> 💰
+                  Build · <span id="drill-cost-label">100</span> 💰
                 </button>
               </div>
 
               <div class="upgrade-row">
                 <div class="upgrade-main">
-                  <div class="upgrade-title">Jeo-Radar</div>
+                  <div class="upgrade-title">Geo Radar</div>
                   <div class="upgrade-sub">
-                    Değerli cevher bulma ihtimalini artırır. Seviye:
+                    Increases chance to find rare ore. Level:
                     <span id="radar-level-label">0</span>
                   </div>
                 </div>
                 <button id="btn-upgrade-radar" class="small">
-                  Yükselt · <span id="radar-cost-label">120</span> 💰
+                  Upgrade · <span id="radar-cost-label">120</span> 💰
                 </button>
               </div>
 
               <div class="upgrade-row">
                 <div class="upgrade-main">
-                  <div class="upgrade-title">Çıkarma Verimliliği</div>
+                  <div class="upgrade-title">Extraction Efficiency</div>
                   <div class="upgrade-sub">
-                    Kazanç çarpanını yükseltir. Seviye:
+                    Raises earnings multiplier. Level:
                     <span id="efficiency-level-label">0</span>
                   </div>
                 </div>
                 <button id="btn-upgrade-efficiency" class="small">
-                  Yükselt · <span id="efficiency-cost-label">150</span> 💰
+                  Upgrade · <span id="efficiency-cost-label">150</span> 💰
                 </button>
               </div>
 
-              <div class="section-title" style="margin-top:10px;">Özel Yükseltmeler (Altın &amp; Maden)</div>
+              <div class="section-title" style="margin-top:10px;">Special Upgrades (Gold & Gems)</div>
               <div class="upgrade-row">
                 <div class="upgrade-main">
-                  <div class="upgrade-title">Sonsuz Asansör</div>
-                  <div class="upgrade-sub">Tüm madenlerde oto kazma +%20</div>
+                  <div class="upgrade-title">Endless Elevator</div>
+                  <div class="upgrade-sub">+20% auto-dig on every shaft</div>
                 </div>
                 <button id="btn-upgrade-elevator" class="small">
-                  Al · <span id="elevator-cost">300 🪙 + 20 💎</span>
+                  Buy · <span id="elevator-cost">300 🪙 + 20 💎</span>
                 </button>
               </div>
               <div class="upgrade-row">
                 <div class="upgrade-main">
-                  <div class="upgrade-title">Patlama Stabilizörü</div>
-                  <div class="upgrade-sub">Göçük cezasını azaltır</div>
+                  <div class="upgrade-title">Blast Stabilizer</div>
+                  <div class="upgrade-sub">Reduces cave-in penalty</div>
                 </div>
                 <button id="btn-upgrade-stabilizer" class="small">
-                  Al · <span id="stabilizer-cost">250 🪙 + 10 💎</span>
+                  Buy · <span id="stabilizer-cost">250 🪙 + 10 💎</span>
                 </button>
               </div>
               <div class="upgrade-row">
                 <div class="upgrade-main">
-                  <div class="upgrade-title">Kristal Bilgi Merkezi</div>
-                  <div class="upgrade-sub">Maden bulma ihtimali +%30</div>
+                  <div class="upgrade-title">Crystal Intelligence</div>
+                  <div class="upgrade-sub">+30% chance to discover gems</div>
                 </div>
                 <button id="btn-upgrade-crystallab" class="small">
-                  Al · <span id="crystallab-cost">500 🪙 + 35 💎</span>
+                  Buy · <span id="crystallab-cost">500 🪙 + 35 💎</span>
                 </button>
               </div>
               <div class="upgrade-row">
                 <div class="upgrade-main">
-                  <div class="upgrade-title">Lüks Ekipman</div>
-                  <div class="upgrade-sub">Her seviye tık gücüne +%5</div>
+                  <div class="upgrade-title">Luxury Gear</div>
+                  <div class="upgrade-sub">Each level +5% click power</div>
                 </div>
                 <button id="btn-upgrade-luxury" class="small">
-                  Al · <span id="luxury-cost">100 🪙 + 5 💎</span>
+                  Buy · <span id="luxury-cost">100 🪙 + 5 💎</span>
                 </button>
               </div>
             </div>
@@ -940,11 +1004,11 @@
             <div class="leaderboard-header">
               <div>
                 <div class="section-title">Leaderboard</div>
-                <div id="room-label" class="small-note">Global sıralama</div>
+                <div id="room-label" class="small-note">Global leaderboard</div>
               </div>
               <div class="leaderboard-toggle">
                 <button id="btn-view-global" class="small active">🌍 Global</button>
-                <button id="btn-view-room" class="small">🏠 Oda</button>
+                <button id="btn-view-room" class="small">🏠 Room</button>
               </div>
             </div>
 
@@ -954,11 +1018,11 @@
             </button>
 
             <div class="small-note" style="margin-top:4px;">
-              Online veriler Supabase ile senkronize edilir. Bağlantı yoksa sadece
-              kendi cihazındaki ilerlemen saklanır.
+              Online data is synced via Supabase. If offline,
+              progress stays on this device.
             </div>
 
-            <div class="section-title" style="margin-top:10px;">Derinlik Haritası</div>
+            <div class="section-title" style="margin-top:10px;">Depth Map</div>
             <div class="depth-ruler" id="depth-ruler">
               <div class="depth-ruler-track"></div>
             </div>
@@ -985,10 +1049,10 @@
 
   // ===================== State =====================
   const MINE_PRESETS = [
-    { id: "main", name: "Ana Maden", goldBonus: 1, oilBonus: 1, gemBonus: 1, collapseRisk: 0.0 },
-    { id: "deep_gold", name: "Altın Damarı", goldBonus: 1.8, oilBonus: 0.7, gemBonus: 1.2, collapseRisk: 0.03 },
-    { id: "oil_field", name: "Petrol Çukuru", goldBonus: 0.6, oilBonus: 2.0, gemBonus: 1.0, collapseRisk: 0.04 },
-    { id: "crystal_cave", name: "Kristal Mağara", goldBonus: 0.9, oilBonus: 0.8, gemBonus: 2.2, collapseRisk: 0.06 },
+    { id: "main", name: "Main Shaft", goldBonus: 1, oilBonus: 1, gemBonus: 1, collapseRisk: 0.0 },
+    { id: "deep_gold", name: "Golden Vein", goldBonus: 1.8, oilBonus: 0.7, gemBonus: 1.2, collapseRisk: 0.03 },
+    { id: "oil_field", name: "Oil Field", goldBonus: 0.6, oilBonus: 2.0, gemBonus: 1.0, collapseRisk: 0.04 },
+    { id: "crystal_cave", name: "Crystal Cavern", goldBonus: 0.9, oilBonus: 0.8, gemBonus: 2.2, collapseRisk: 0.06 },
   ];
 
   const defaultState = {
@@ -999,7 +1063,7 @@
     mines: {
       main: {
         id: "main",
-        name: "Ana Maden",
+        name: "Main Shaft",
         depth: 0,
         axeLevel: 1,
         miners: 0,
@@ -1008,6 +1072,7 @@
         efficiencyLevel: 0,
       },
     },
+    language: "en",
     gold: 0,
     oil: 0,
     gems: 0,
@@ -1093,6 +1158,16 @@
   const createdRoomCodeEl = document.getElementById("created-room-code");
 
   const depthLabel = document.getElementById("depth-label");
+  const minimapDepthLabel = document.getElementById("minimap-depth");
+  const minimapCanvas = document.getElementById("minimap-map");
+  const subtitleEl = document.getElementById("subtitle");
+  const playerTitleEl = document.getElementById("player-title");
+  const nameLabelEl = document.getElementById("name-label");
+  const syncNoteEl = document.getElementById("sync-note");
+  const roomTitleEl = document.getElementById("room-title");
+  const roomJoinLabelEl = document.getElementById("room-join-label");
+  const roomNoteEl = document.getElementById("room-note");
+  const autoRateTitle = document.getElementById("auto-rate-title");
   const moneyLabel = document.getElementById("money-label");
   const goldLabel = document.getElementById("gold-label");
   const oilLabel = document.getElementById("oil-label");
@@ -1147,10 +1222,94 @@
   const btnUpgradeEfficiency = document.getElementById("btn-upgrade-efficiency");
   const btnToggleSfx = document.getElementById("btn-toggle-sfx");
   const btnToggleMusic = document.getElementById("btn-toggle-music");
+  const btnLanguage = document.getElementById("btn-language");
   const btnCharge = document.getElementById("btn-charge");
   const btnViewGlobal = document.getElementById("btn-view-global");
   const btnViewRoom = document.getElementById("btn-view-room");
   const btnRefreshLeaderboard = document.getElementById("btn-refresh-leaderboard");
+
+  const translations = {
+    en: {
+      subtitle:
+        "Watch your miners dig through layered rock, upgrade drills and tools, and compete on shared rooms or the global board.",
+      playerTitle: "Player",
+      nameLabel: "Your name",
+      namePlaceholder: "Umut, Nova etc.",
+      startSolo: "🌍 Solo / Global start",
+      syncNote: "We will sync online/leaderboards when possible. If offline, the game works fully on your device.",
+      roomTitle: "Room (optional)",
+      roomJoinLabel: "Join an existing room",
+      roomPlaceholder: "e.g. GOLD01",
+      joinRoom: "Join room",
+      createRoom: "🏠 Create Room",
+      roomNote: "Share the room code with friends. With the same code the leaderboard only shows players in that room.",
+      collapseWarning: "⚠️ Cave-in! Miners are escaping…",
+      noCollapse: "No cave-in, keep digging!",
+      repair: "Repair (200 💰 + 100 🛢️)",
+      autoRateLabel: "Auto-dig:",
+      sfxOn: "🔊 SFX On",
+      sfxOff: "🔈 SFX Off",
+      musicOn: "🎵 Music On",
+      musicOff: "🎵 Music Off",
+      onlineConnecting: "Connecting...",
+      onlineOffline: "Offline · saving only on this device",
+      onlineOnline: "Online · syncing leaderboard",
+    },
+    tr: {
+      subtitle:
+        "Madencilerini katmanlı kayalarda izle, ekipmanını geliştir ve global ya da arkadaş odalarında yarış.",
+      playerTitle: "Oyuncu",
+      nameLabel: "İsmin",
+      namePlaceholder: "Umut, Nova vs.",
+      startSolo: "🌍 Tek başıma / Global",
+      syncNote: "Mümkün olduğunda çevrim içi senkronize ederiz. Offline ise her şey cihazında çalışır.",
+      roomTitle: "Oda (isteğe bağlı)",
+      roomJoinLabel: "Mevcut bir odaya katıl",
+      roomPlaceholder: "Örn: GOLD01",
+      joinRoom: "Odaya Katıl",
+      createRoom: "🏠 Yeni Oda",
+      roomNote: "Oda kodunu arkadaşlarınla paylaş. Aynı kodla girerlerse leaderboard sadece onları gösterir.",
+      collapseWarning: "⚠️ Göçük! İşçiler kaçmaya çalışıyor…",
+      noCollapse: "Göçük yok, kazmaya devam!",
+      repair: "Onar (200 💰 + 100 🛢️)",
+      autoRateLabel: "Oto kazma:",
+      sfxOn: "🔊 Ses Açık",
+      sfxOff: "🔈 Ses Kapalı",
+      musicOn: "🎵 Müzik Açık",
+      musicOff: "🎵 Müzik Kapalı",
+      onlineConnecting: "Online bağlanmaya çalışılıyor...",
+      onlineOffline: "Offline · kayıt sadece bu cihazda",
+      onlineOnline: "Online · leaderboard senkronize ediliyor",
+    },
+  };
+
+  function t(key) {
+    const lang = state.language || "en";
+    return translations[lang]?.[key] ?? translations.en[key] ?? key;
+  }
+
+  function applyLanguage() {
+    const lang = state.language || "en";
+    document.documentElement.lang = lang;
+    if (subtitleEl) subtitleEl.textContent = t("subtitle");
+    if (playerTitleEl) playerTitleEl.textContent = t("playerTitle");
+    if (nameLabelEl) nameLabelEl.textContent = t("nameLabel");
+    if (playerNameInput) playerNameInput.placeholder = t("namePlaceholder");
+    if (btnStartSolo) btnStartSolo.textContent = t("startSolo");
+    if (syncNoteEl) syncNoteEl.textContent = t("syncNote");
+    if (roomTitleEl) roomTitleEl.textContent = t("roomTitle");
+    if (roomJoinLabelEl) roomJoinLabelEl.textContent = t("roomJoinLabel");
+    if (roomCodeInput) roomCodeInput.placeholder = t("roomPlaceholder");
+    if (btnJoinRoom) btnJoinRoom.textContent = t("joinRoom");
+    if (btnCreateRoom) btnCreateRoom.textContent = t("createRoom");
+    if (roomNoteEl) roomNoteEl.textContent = t("roomNote");
+    if (btnRepair) btnRepair.textContent = t("repair");
+    if (onlineStatusText) onlineStatusText.textContent = t("onlineConnecting");
+    if (btnLanguage) btnLanguage.textContent = state.language === "en" ? "🇬🇧 EN" : "🇹🇷 TR";
+    if (autoRateTitle) autoRateTitle.textContent = t("autoRateLabel");
+    if (collapseWarningEl) collapseWarningEl.textContent = t("collapseWarning");
+  }
+
 
   function log(msg) {
     const line = document.createElement("div");
@@ -1170,7 +1329,7 @@
         a.volume = volume;
         return a;
       } catch (e) {
-        console.warn("Ses yüklenemedi", src, e);
+        console.warn("Sound could not load", src, e);
         return null;
       }
     };
@@ -1276,12 +1435,13 @@
         mine.radarLevel ??= 0;
         mine.efficiencyLevel ??= 0;
         mine.depth ??= 0;
-        mine.name ??= getMinePreset(mine.id)?.name || "Maden";
+        mine.name ??= getMinePreset(mine.id)?.name || "Mine";
       });
 
       state.specialUpgrades = { ...defaultState.specialUpgrades, ...(state.specialUpgrades || {}) };
       state.currentEvent = { ...defaultState.currentEvent, ...(state.currentEvent || {}) };
       state.stabilityBuffUntil = state.stabilityBuffUntil || 0;
+      state.language = state.language || "en";
     } catch (e) {
       console.error("Failed to load state", e);
     }
@@ -1309,12 +1469,12 @@
     if (isCollapseActive()) {
       eventPanel.classList.add("active");
       const remaining = Math.max(0, state.currentEvent.endsAt - Date.now());
-      eventLabel.textContent = "⚠️ Göçük! İşçiler kaçmaya çalışıyor…";
-      eventTimer.textContent = `${(remaining / 1000).toFixed(1)} sn`;
+      eventLabel.textContent = t("collapseWarning");
+      eventTimer.textContent = `${(remaining / 1000).toFixed(1)} s`;
       collapseWarningEl.classList.add("active");
     } else {
       collapseWarningEl.classList.remove("active");
-      eventLabel.textContent = "Göçük yok, kazmaya devam!";
+      eventLabel.textContent = t("noCollapse");
       eventTimer.textContent = "–";
       eventPanel.classList.remove("active");
     }
@@ -1333,7 +1493,7 @@
         recalcDerivedStats();
         updateStatsUI();
         renderMineTabs();
-        log(`${mine.name} seçildi.`);
+        log(`${mine.name} selected.`);
         saveLocalState();
       });
       mineTabsEl.appendChild(btn);
@@ -1343,7 +1503,7 @@
     if (nextPreset) {
       const addBtn = document.createElement("button");
       addBtn.className = "mine-tab add";
-      addBtn.textContent = "+ Yeni Şaft Aç";
+      addBtn.textContent = "+ Open New Shaft";
       addBtn.addEventListener("click", () => {
         unlockNextMine();
       });
@@ -1355,7 +1515,7 @@
     const unlockedExtras = Math.max(0, Object.keys(state.mines).length - 1);
     const cost = unlockedExtras === 0 ? { money: 500, gold: 200 } : { money: 2000, oil: 400, gems: 40 };
     if (state.money < (cost.money || 0) || state.gold < (cost.gold || 0) || state.oil < (cost.oil || 0) || state.gems < (cost.gems || 0)) {
-      log("Kaynakların yeni şaft için yetersiz.");
+      log("Not enough resources for a new shaft.");
       return;
     }
     const preset = MINE_PRESETS.find((p) => !state.mines[p.id]);
@@ -1379,7 +1539,7 @@
     recalcDerivedStats();
     renderMineTabs();
     updateStatsUI();
-    log(`Yeni maden açıldı: ${preset.name}`);
+    log(`New mine opened: ${preset.name}`);
     soundManager.playUpgrade();
     saveLocalState();
   }
@@ -1395,7 +1555,7 @@
     };
     shakeStrength = 1.5;
     shakeTime = 1.2;
-    log(`⚠️ Göçük! ${mine.name} kapandı, işçiler kaçıyor.`);
+    log(`⚠️ Cave-in! ${mine.name} collapsed, workers are fleeing.`);
     soundManager.playUpgrade();
     updateEventUI();
   }
@@ -1404,9 +1564,9 @@
     if (!state.currentEvent || state.currentEvent.type !== "collapse") return;
     if (paid) {
       state.stabilityBuffUntil = Date.now() + 60000;
-      log("Onarım yapıldı, kısa süreli stabilite bonusu aktif!");
+      log("Repairs complete, temporary stability bonus active!");
     } else {
-      log("Göçük sona erdi, kazmaya dön! ");
+      log("Cave-in ended, back to digging!");
     }
     state.currentEvent = { ...defaultState.currentEvent };
     recalcDerivedStats();
@@ -1433,10 +1593,10 @@
     if (!onlinePill) return;
     if (supabaseOnline) {
       onlinePill.classList.remove("offline");
-      onlineStatusText.textContent = "Online / Supabase ile senkronize edilmeye çalışılıyor";
+      onlineStatusText.textContent = t("onlineOnline");
     } else {
       onlinePill.classList.add("offline");
-      onlineStatusText.textContent = "Offline · Yalnızca bu cihazda kayıtlı";
+      onlineStatusText.textContent = t("onlineOffline");
     }
   }
 
@@ -1496,7 +1656,7 @@
     state.money += moneyGain;
 
     if (!isAuto) {
-      log(`+${moneyGain.toFixed(1)} 💰 (kazma) · Derinlik: ${mine.depth.toFixed(1)} m`);
+      log(`+${moneyGain.toFixed(1)} 💰 (kazma) · Depth: ${mine.depth.toFixed(1)} m`);
     }
 
     return { moneyGain, goldGain, oilGain, gemGain };
@@ -1521,7 +1681,8 @@
     oilLabel.textContent = state.oil.toFixed(1);
     gemsLabel.textContent = state.gems.toFixed(1);
     perClickLabel.textContent = `${state.perClick.toFixed(1)} m`;
-    autoRateLabel.textContent = `${state.autoRate.toFixed(2)} m/sn`;
+    autoRateLabel.textContent = `${state.autoRate.toFixed(2)} m/s`;
+    if (minimapDepthLabel) minimapDepthLabel.textContent = `${mine.depth.toFixed(0)} m`;
     axeLevelLabel.textContent = mine.axeLevel;
     minersLabel.textContent = mine.miners;
     drillLevelLabel.textContent = mine.drillLevel;
@@ -1540,13 +1701,13 @@
 
     const readyIn = nextChargeReadyInMs();
     if (isChargeActive()) {
-      chargeStatusEl.textContent = "AKTİF";
+      chargeStatusEl.textContent = "ACTIVE";
       chargeStatusEl.style.color = "#facc15";
     } else if (readyIn <= 0) {
-      chargeStatusEl.textContent = "Hazır";
+      chargeStatusEl.textContent = "Ready";
       chargeStatusEl.style.color = "#22c55e";
     } else {
-      chargeStatusEl.textContent = `${(readyIn / 1000).toFixed(1)} sn`;
+      chargeStatusEl.textContent = `${(readyIn / 1000).toFixed(1)} s`;
       chargeStatusEl.style.color = "#f97373";
     }
     chargeMultEl.textContent = `x${chargeMultiplier().toFixed(1)}`;
@@ -1555,15 +1716,15 @@
     btnCharge.classList.toggle("active", isChargeActive());
 
     btnToggleSfx.classList.toggle("active", state.soundEnabled);
-    btnToggleSfx.textContent = state.soundEnabled ? "🔊 Ses Açık" : "🔈 Ses Kapalı";
+    btnToggleSfx.textContent = state.soundEnabled ? t("sfxOn") : t("sfxOff");
     btnToggleMusic.classList.toggle("active", state.musicEnabled);
-    btnToggleMusic.textContent = state.musicEnabled ? "🎵 Müzik Açık" : "🎵 Müzik Kapalı";
+    btnToggleMusic.textContent = state.musicEnabled ? t("musicOn") : t("musicOff");
 
     // room label
     if (state.roomCode) {
-      roomLabel.textContent = `Oda: ${state.roomCode}`;
+      roomLabel.textContent = `Room: ${state.roomCode}`;
     } else {
-      roomLabel.textContent = "Global sıralama";
+      roomLabel.textContent = "Global leaderboard";
     }
 
     const collapse = isCollapseActive();
@@ -1580,6 +1741,50 @@
     btnUpgradeLuxury.disabled = state.gold < 100 || state.gems < 5;
 
     updateEventUI();
+    renderMinimap();
+  }
+
+  function renderMinimap() {
+    if (!minimapCanvas) return;
+    const ctx = minimapCanvas.getContext("2d");
+    const w = minimapCanvas.width;
+    const h = minimapCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, "#0ea5e9");
+    grad.addColorStop(1, "#0f172a");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+    ctx.lineWidth = 1;
+    for (let y = 0; y <= h; y += 18) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+
+    const mines = Object.values(state.mines || {});
+    const maxDepth = Math.max(80, ...mines.map((m) => m.depth || 0));
+    mines.forEach((m, idx) => {
+      const ratio = mines.length <= 1 ? 0.5 : idx / (mines.length - 1);
+      const x = 20 + ratio * (w - 40);
+      const y = Math.min(h - 10, ((m.depth || 0) / maxDepth) * (h - 12));
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.55)";
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.fillStyle = m.id === state.currentMineId ? "#38bdf8" : "#f59e0b";
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(226, 232, 240, 0.7)";
+      ctx.font = "10px Inter, sans-serif";
+      ctx.fillText(m.name || "Mine", x - 12, Math.min(h - 4, y + 12));
+    });
   }
 
   // ===================== Three.js =====================
@@ -1588,6 +1793,12 @@
   let oreDecorations = [];
   let dustParticles = [];
   let minimapMarker;
+  let supportBeams = [];
+  let lanterns = [];
+  let cartMesh;
+  let cartWheels = [];
+  let cartDirection = 1;
+  let cartOffset = 0;
   let lastFrameTime = performance.now();
   let digPulse = 0;
   let shakeTime = 0;
@@ -1626,6 +1837,100 @@
     tex.repeat.set(8, 8);
     tex.anisotropy = 4;
     return tex;
+  }
+
+  function createSupportBeams() {
+    supportBeams.forEach((b) => shaftGroup.remove(b));
+    supportBeams = [];
+    const beamMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.78, metalness: 0.08 });
+    for (let i = 0; i < 14; i++) {
+      const frame = new THREE.Group();
+      const crossTop = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.2, 0.3), beamMat);
+      const crossBottom = crossTop.clone();
+      crossBottom.position.y = -1.2;
+      const sideA = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.5, 0.3), beamMat);
+      sideA.position.set(-2.6, -0.6, 0);
+      const sideB = sideA.clone();
+      sideB.position.x = 2.6;
+      frame.add(crossTop, crossBottom, sideA, sideB);
+      frame.position.y = -i * 6 - 1.6;
+      frame.rotation.y = (i % 2 === 0 ? 0 : Math.PI / 36);
+      shaftGroup.add(frame);
+      supportBeams.push(frame);
+    }
+  }
+
+  function addLantern(position) {
+    const lantern = new THREE.Group();
+    const cage = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.4, 8), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.7, roughness: 0.25 }));
+    cage.rotation.x = Math.PI;
+    cage.position.y = -0.2;
+    const light = new THREE.PointLight(0xf59e0b, 1.35, 9, 2);
+    light.position.set(0, -0.4, 0);
+    lantern.add(cage, light);
+    lantern.position.copy(position);
+    shaftGroup.add(lantern);
+    lanterns.push({ light, mesh: lantern, phase: Math.random() * Math.PI * 2 });
+  }
+
+  function createLanterns() {
+    lanterns.forEach((lan) => shaftGroup.remove(lan.mesh));
+    lanterns = [];
+    addLantern(new THREE.Vector3(-2.2, -2, 2.2));
+    addLantern(new THREE.Vector3(2.2, -9, -2.3));
+    addLantern(new THREE.Vector3(-2.2, -18, -2.2));
+  }
+
+  function createRailsAndCart(scene) {
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x3f3f46, metalness: 0.45, roughness: 0.4 });
+    const tieMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.85 });
+    const railGeo = new THREE.BoxGeometry(9.5, 0.12, 0.18);
+    const tieGeo = new THREE.BoxGeometry(0.45, 0.12, 2.2);
+    const railL = new THREE.Mesh(railGeo, railMat);
+    railL.position.set(0, 0.08, 2.4);
+    const railR = railL.clone();
+    railR.position.z = 2.9;
+    scene.add(railL, railR);
+    for (let i = -4; i <= 4; i++) {
+      const tie = new THREE.Mesh(tieGeo, tieMat);
+      tie.position.set(i * 1.05, 0.02, 2.65);
+      scene.add(tie);
+    }
+
+    cartMesh = new THREE.Group();
+    cartWheels = [];
+    const cartBody = new THREE.Mesh(
+      new THREE.BoxGeometry(1.7, 0.85, 1.2),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.65, roughness: 0.3 })
+    );
+    cartBody.position.y = 0.6;
+    const cartRim = new THREE.Mesh(
+      new THREE.BoxGeometry(1.8, 0.12, 1.3),
+      new THREE.MeshStandardMaterial({ color: 0xdbeafe, metalness: 0.3, roughness: 0.6 })
+    );
+    cartRim.position.y = 1.05;
+    cartMesh.add(cartBody, cartRim);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.25, 14);
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.6, roughness: 0.4 });
+    const wheelPositions = [
+      [-0.6, 0.25, 2.4],
+      [0.6, 0.25, 2.4],
+      [-0.6, 0.25, 2.9],
+      [0.6, 0.25, 2.9],
+    ];
+    wheelPositions.forEach(([x, y, z]) => {
+      const w = new THREE.Mesh(wheelGeo, wheelMat);
+      w.rotation.z = Math.PI / 2;
+      w.position.set(x, y, z - 2.65);
+      cartMesh.add(w);
+      cartWheels.push(w);
+    });
+
+    cartMesh.position.set(0, 0.2, 2.65);
+    scene.add(cartMesh);
+    cartOffset = 0;
+    cartDirection = 1;
   }
 
   function buildMiner() {
@@ -1753,6 +2058,8 @@
     ground.position.y = 0;
     scene.add(ground);
 
+    createRailsAndCart(scene);
+
     shaftGroup = new THREE.Group();
     const wallMat = new THREE.MeshStandardMaterial({
       color: 0x3a2b22,
@@ -1784,6 +2091,8 @@
     rim.position.set(0, 0.2, 0);
     shaftGroup.add(rim);
     scene.add(shaftGroup);
+    createSupportBeams();
+    createLanterns();
 
     populateOreDecorations();
 
@@ -1878,6 +2187,27 @@
     });
   }
 
+  function animateLanterns(dt) {
+    lanterns.forEach((lan) => {
+      lan.phase += dt * 2.4;
+      const flicker = 1 + Math.sin(lan.phase) * 0.18 + Math.random() * 0.08;
+      lan.light.intensity = 1.1 * flicker;
+      lan.mesh.rotation.z = Math.sin(lan.phase * 0.7) * 0.04;
+    });
+  }
+
+  function animateCart(dt) {
+    if (!cartMesh) return;
+    cartOffset += dt * cartDirection * 2.1;
+    if (cartOffset > 3.5 || cartOffset < -3.5) {
+      cartDirection *= -1;
+      cartOffset = THREE.MathUtils.clamp(cartOffset, -3.5, 3.5);
+    }
+    cartMesh.position.x = cartOffset;
+    cartMesh.rotation.y = cartDirection === 1 ? Math.PI : 0;
+    cartWheels.forEach((w) => (w.rotation.z += dt * 6 * cartDirection));
+  }
+
   function updateOreVisibility() {
     const mine = getCurrentMine();
     const depth = mine ? mine.depth : 0;
@@ -1930,6 +2260,18 @@
     });
   }
 
+  function spawnRipple() {
+    if (!floatingContainer) return;
+    const pos = drillMesh ? drillMesh.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3();
+    const screen = projectToScreen(pos);
+    const el = document.createElement("div");
+    el.className = "dig-ripple";
+    el.style.left = `${screen.x}px`;
+    el.style.top = `${screen.y}px`;
+    floatingContainer.appendChild(el);
+    setTimeout(() => el.remove(), 950);
+  }
+
   function animateMiner(dt) {
     if (!minerGroup) return;
     if (minerDigTimer > 0) {
@@ -1953,6 +2295,8 @@
     updateOreVisibility();
     updateDust(dt);
     animateMiner(dt);
+    animateLanterns(dt);
+    animateCart(dt);
 
     const maxVisualDepth = 200;
     const depthRatio = Math.min(1, depthVal / maxVisualDepth);
@@ -2128,7 +2472,7 @@
     leaderboardListEl.innerHTML = "";
     if (!players.length) {
       const empty = document.createElement("div");
-      empty.textContent = "Henüz kayıtlı oyuncu yok.";
+      empty.textContent = "No players yet.";
       empty.style.color = "#9ca3af";
       empty.style.fontSize = "0.8rem";
       leaderboardListEl.appendChild(empty);
@@ -2215,15 +2559,15 @@
   // ===================== Session / setup =====================
   function applyRoomLabel() {
     if (state.roomCode) {
-      roomLabel.textContent = `Oda: ${state.roomCode}`;
+      roomLabel.textContent = `Room: ${state.roomCode}`;
     } else {
-      roomLabel.textContent = "Global sıralama";
+      roomLabel.textContent = "Global leaderboard";
     }
   }
 
   function startSession() {
     if (!state.playerName) {
-      setupErrorEl.textContent = "Lütfen ismini yaz.";
+      setupErrorEl.textContent = "Please enter your name.";
       return;
     }
     setupErrorEl.textContent = "";
@@ -2236,9 +2580,9 @@
     setupSection.style.display = "none";
     gameSection.style.display = "block";
 
-    log(`Hoş geldin ${state.playerName}! Kazmaya başlayabilirsin.`);
+    log(`Welcome ${state.playerName}! you can start digging.`);
     if (state.roomCode) {
-      log(`Oda kodun: ${state.roomCode}. Bu kodu arkadaşlarınla paylaş.`);
+      log(`Room code: ${state.roomCode}. Share it with friends to play together.`);
     }
 
     // Try to sync & load leaderboard
@@ -2251,7 +2595,7 @@
     markInteraction();
     const name = playerNameInput.value.trim();
     if (!name) {
-      setupErrorEl.textContent = "Lütfen ismini yaz.";
+      setupErrorEl.textContent = "Please enter your name.";
       return;
     }
     state.playerName = name;
@@ -2264,11 +2608,11 @@
     const name = playerNameInput.value.trim();
     const code = roomCodeInput.value.trim().toUpperCase();
     if (!name) {
-      setupErrorEl.textContent = "Lütfen ismini yaz.";
+      setupErrorEl.textContent = "Please enter your name.";
       return;
     }
     if (!code) {
-      setupErrorEl.textContent = "Oda kodu boş olamaz.";
+      setupErrorEl.textContent = "Room code cannot be empty.";
       return;
     }
     state.playerName = name;
@@ -2281,22 +2625,33 @@
     markInteraction();
     const name = playerNameInput.value.trim();
     if (!name) {
-      setupErrorEl.textContent = "Önce ismini yaz, sonra oda oluştur.";
+      setupErrorEl.textContent = "Enter a name before creating a room.";
       return;
     }
     state.playerName = name;
     const slug = Math.random().toString(36).substring(2, 7).toUpperCase();
     state.roomCode = slug;
     createdRoomCodeEl.style.display = "inline-block";
-    createdRoomCodeEl.textContent = `Oda kodun: ${slug}`;
-    setupErrorEl.textContent = "Odayı kullanmak için üstten 'Tek başıma / Global' değil, 'Odaya Katıl' demene gerek yok; direkt Başlat diyebilirsin.";
+    createdRoomCodeEl.textContent = `Room code: ${slug}`;
+    setupErrorEl.textContent = "After creating a room you can just start; friends who join with the code will share the leaderboard.";
+  });
+
+  btnLanguage.addEventListener("click", () => {
+    markInteraction();
+    state.language = state.language === "en" ? "tr" : "en";
+    btnLanguage.textContent = state.language === "en" ? "🇬🇧 EN" : "🇹🇷 TR";
+    applyLanguage();
+    updateStatsUI();
+    updateEventUI();
+    updateOnlineStatusUI();
+    saveLocalState();
   });
 
   btnDig.addEventListener("click", () => {
     if (!sessionStarted) return;
     markInteraction();
     if (isCollapseActive()) {
-      log("Göçük sırasında kazma çok zor, önce onar!");
+      log("Digging during a cave-in is risky, repair first!");
       return;
     }
     const gains = applyMining(state.perClick, false);
@@ -2305,6 +2660,7 @@
     shakeStrength = Math.min(1.2, 0.1 + state.perClick * 0.04);
     shakeTime = 0.35;
     spawnDust();
+    spawnRipple();
     spawnFloatingTextFromGains(gains);
     soundManager.playDig();
     if (gains.moneyGain > 8) soundManager.playMoney();
@@ -2319,7 +2675,7 @@
     const mine = getCurrentMine();
     const cost = axeCost(mine.axeLevel);
     if (!spend(cost)) {
-      log("Yeterli paran yok (Kazma yükseltme).");
+      log("Not enough cash (Pickaxe upgrade).");
       return;
     }
     mine.axeLevel += 1;
@@ -2336,12 +2692,12 @@
     const mine = getCurrentMine();
     const cost = minerCost(mine.miners);
     if (!spend(cost)) {
-      log("Yeterli paran yok (İşçi kiralama).");
+      log("Yeterli paran yok (Worker kiralama).");
       return;
     }
     mine.miners += 1;
     recalcDerivedStats();
-    log(`${mine.name} için yeni işçi işe alındı. Toplam: ${mine.miners}.`);
+    log(`${mine.name}  hired a new worker. Total: ${mine.miners}.`);
     soundManager.playUpgrade();
     updateStatsUI();
     saveLocalState();
@@ -2370,7 +2726,7 @@
     const mine = getCurrentMine();
     const cost = radarCost(mine.radarLevel);
     if (!spend(cost)) {
-      log("Yeterli paran yok (Jeo-Radar).");
+      log("Yeterli paran yok (Geo Radar).");
       return;
     }
     mine.radarLevel += 1;
@@ -2392,7 +2748,7 @@
     }
     mine.efficiencyLevel += 1;
     recalcDerivedStats();
-    log(`${mine.name} çıkarma verimliliği ${mine.efficiencyLevel} oldu.`);
+    log(`${mine.name} extraction efficiency ${mine.efficiencyLevel} oldu.`);
     soundManager.playUpgrade();
     updateStatsUI();
     saveLocalState();
@@ -2409,12 +2765,12 @@
     if (!sessionStarted || state.specialUpgrades.elevator) return;
     markInteraction();
     if (!spendSpecial({ gold: 300, gems: 20 })) {
-      log("Asansör için yeterli altın/gems yok.");
+      log("Not enough gold/gems for the elevator.");
       return;
     }
     state.specialUpgrades.elevator = true;
     recalcDerivedStats();
-    log("Sonsuz Asansör kuruldu! Tüm oto kazma hızlandı.");
+    log("Endless Elevator installed! Auto-digging is faster.");
     soundManager.playUpgrade();
     updateStatsUI();
     saveLocalState();
@@ -2424,11 +2780,11 @@
     if (!sessionStarted || state.specialUpgrades.stabilizer >= 1) return;
     markInteraction();
     if (!spendSpecial({ gold: 250, gems: 10 })) {
-      log("Stabilizör için yeterli kaynak yok.");
+      log("Not enough resources for the stabilizer.");
       return;
     }
     state.specialUpgrades.stabilizer = 1;
-    log("Patlama Stabilizörü kuruldu. Göçük etkisi azaldı.");
+    log("Blast Stabilizer installed. Cave-in penalty reduced.");
     soundManager.playUpgrade();
     saveLocalState();
     updateStatsUI();
@@ -2438,11 +2794,11 @@
     if (!sessionStarted || state.specialUpgrades.crystalLab) return;
     markInteraction();
     if (!spendSpecial({ gold: 500, gems: 35 })) {
-      log("Kristal Bilgi Merkezi için yeterli kaynak yok.");
+      log("Crystal Intelligence insufficient resources.");
       return;
     }
     state.specialUpgrades.crystalLab = true;
-    log("Kristal Bilgi Merkezi açıldı. Maden bulma oranı arttı!");
+    log("Crystal Intelligence unlocked. Gem discovery increased!");
     soundManager.playUpgrade();
     saveLocalState();
     updateStatsUI();
@@ -2452,12 +2808,12 @@
     if (!sessionStarted) return;
     markInteraction();
     if (!spendSpecial({ gold: 100, gems: 5 })) {
-      log("Lüks Ekipman için kaynak yetersiz.");
+      log("Not enough resources for Luxury Gear.");
       return;
     }
     state.specialUpgrades.luxury += 1;
     recalcDerivedStats();
-    log(`Lüks Ekipman seviyesi ${state.specialUpgrades.luxury} oldu.`);
+    log(`Luxury Gear seviyesi ${state.specialUpgrades.luxury} oldu.`);
     soundManager.playUpgrade();
     saveLocalState();
     updateStatsUI();
@@ -2485,7 +2841,7 @@
     state.chargeActiveUntil = Date.now() + duration;
     state.chargeReadyAt = Date.now() + cooldown;
     recalcDerivedStats();
-    log("Patlayıcı yük devrede! Kazançlar katlandı.");
+    log("Explosive charge active! Earnings multiplied.");
     soundManager.playUpgrade();
     updateStatsUI();
     saveLocalState();
@@ -2513,7 +2869,7 @@
     if (!isCollapseActive()) return;
     const cost = { money: 200, oil: 100 };
     if (state.money < cost.money || state.oil < cost.oil) {
-      log("Onarım için yeterli nakit/petrol yok.");
+      log("Not enough cash/oil to repair.");
       return;
     }
     state.money -= cost.money;
@@ -2573,6 +2929,7 @@
   window.addEventListener("pointerdown", () => markInteraction(), { once: true });
 
   loadLocalState();
+  applyLanguage();
   updateOnlineStatusUI();
   recalcDerivedStats();
   updateStatsUI();
