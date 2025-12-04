@@ -241,6 +241,27 @@
       overflow: hidden;
     }
 
+    .collapse-warning {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(185, 28, 28, 0.25);
+      color: #fecdd3;
+      font-weight: 700;
+      text-align: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+      backdrop-filter: blur(1px);
+    }
+
+    .collapse-warning.active {
+      opacity: 1;
+      pointer-events: none;
+    }
+
     .floating-text {
       position: absolute;
       color: #facc15;
@@ -273,6 +294,37 @@
       box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
       background: rgba(56, 189, 248, 0.1);
       color: #e0f2fe;
+    }
+
+    .mine-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .mine-tab {
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      background: rgba(15, 23, 42, 0.8);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+    }
+
+    .mine-tab.active {
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+      background: rgba(56, 189, 248, 0.15);
+      color: #e0f2fe;
+    }
+
+    .mine-tab.add {
+      border-color: rgba(74, 222, 128, 0.6);
+      color: #bbf7d0;
+      background: rgba(22, 101, 52, 0.25);
     }
 
     .depth-hud {
@@ -332,6 +384,25 @@
       gap: 10px;
       align-items: center;
       margin-bottom: 10px;
+    }
+
+    .event-panel {
+      margin-top: 6px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(185, 28, 28, 0.35);
+      background: rgba(127, 29, 29, 0.18);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      color: #fecdd3;
+    }
+
+    .event-panel:not(.active) {
+      opacity: 0.7;
+      border-color: rgba(148, 163, 184, 0.3);
+      background: rgba(15, 23, 42, 0.2);
+      color: var(--text-soft);
     }
 
     .dig-row button {
@@ -696,6 +767,7 @@
               <span class="value" id="depth-label">0 m</span>
             </div>
             <div class="minimap-overlay" aria-hidden="true">Mini-harita</div>
+            <div class="collapse-warning" id="collapse-warning">⚠️ Göçük! İşçiler kaçmaya çalışıyor…</div>
             <div class="floating-container" id="floating-container"></div>
           </div>
 
@@ -739,9 +811,20 @@
               </div>
             </div>
 
+            <div class="section-title" style="margin-top:8px;">Madenler</div>
+            <div class="mine-tabs" id="mine-tabs"></div>
+
             <div class="sound-controls">
               <button id="btn-toggle-sfx" class="toggle-btn active">🔊 Ses Açık</button>
               <button id="btn-toggle-music" class="toggle-btn">🎵 Müzik Kapalı</button>
+            </div>
+
+            <div class="event-panel" id="event-panel">
+              <div id="event-label">Göçük yok, kazmaya devam!</div>
+              <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                <div id="event-timer">–</div>
+                <button id="btn-repair" class="small secondary">Onar (200 💰 + 100 🛢️)</button>
+              </div>
             </div>
 
             <div class="upgrade-list">
@@ -809,6 +892,44 @@
                   Yükselt · <span id="efficiency-cost-label">150</span> 💰
                 </button>
               </div>
+
+              <div class="section-title" style="margin-top:10px;">Özel Yükseltmeler (Altın &amp; Maden)</div>
+              <div class="upgrade-row">
+                <div class="upgrade-main">
+                  <div class="upgrade-title">Sonsuz Asansör</div>
+                  <div class="upgrade-sub">Tüm madenlerde oto kazma +%20</div>
+                </div>
+                <button id="btn-upgrade-elevator" class="small">
+                  Al · <span id="elevator-cost">300 🪙 + 20 💎</span>
+                </button>
+              </div>
+              <div class="upgrade-row">
+                <div class="upgrade-main">
+                  <div class="upgrade-title">Patlama Stabilizörü</div>
+                  <div class="upgrade-sub">Göçük cezasını azaltır</div>
+                </div>
+                <button id="btn-upgrade-stabilizer" class="small">
+                  Al · <span id="stabilizer-cost">250 🪙 + 10 💎</span>
+                </button>
+              </div>
+              <div class="upgrade-row">
+                <div class="upgrade-main">
+                  <div class="upgrade-title">Kristal Bilgi Merkezi</div>
+                  <div class="upgrade-sub">Maden bulma ihtimali +%30</div>
+                </div>
+                <button id="btn-upgrade-crystallab" class="small">
+                  Al · <span id="crystallab-cost">500 🪙 + 35 💎</span>
+                </button>
+              </div>
+              <div class="upgrade-row">
+                <div class="upgrade-main">
+                  <div class="upgrade-title">Lüks Ekipman</div>
+                  <div class="upgrade-sub">Her seviye tık gücüne +%5</div>
+                </div>
+                <button id="btn-upgrade-luxury" class="small">
+                  Al · <span id="luxury-cost">100 🪙 + 5 💎</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -863,20 +984,34 @@
   const LS_KEY = "deepmine_state_v1";
 
   // ===================== State =====================
+  const MINE_PRESETS = [
+    { id: "main", name: "Ana Maden", goldBonus: 1, oilBonus: 1, gemBonus: 1, collapseRisk: 0.0 },
+    { id: "deep_gold", name: "Altın Damarı", goldBonus: 1.8, oilBonus: 0.7, gemBonus: 1.2, collapseRisk: 0.03 },
+    { id: "oil_field", name: "Petrol Çukuru", goldBonus: 0.6, oilBonus: 2.0, gemBonus: 1.0, collapseRisk: 0.04 },
+    { id: "crystal_cave", name: "Kristal Mağara", goldBonus: 0.9, oilBonus: 0.8, gemBonus: 2.2, collapseRisk: 0.06 },
+  ];
+
   const defaultState = {
     playerName: "",
     playerId: null,
     roomCode: null,
-    depth: 0,
+    currentMineId: "main",
+    mines: {
+      main: {
+        id: "main",
+        name: "Ana Maden",
+        depth: 0,
+        axeLevel: 1,
+        miners: 0,
+        drillLevel: 0,
+        radarLevel: 0,
+        efficiencyLevel: 0,
+      },
+    },
     gold: 0,
     oil: 0,
     gems: 0,
     money: 0,
-    axeLevel: 1,
-    miners: 0,
-    drillLevel: 0,
-    radarLevel: 0,
-    efficiencyLevel: 0,
     chargeReadyAt: 0,
     chargeActiveUntil: 0,
     soundEnabled: true,
@@ -884,15 +1019,46 @@
     perClick: 1,
     autoRate: 0,
     bestDepthSynced: 0,
+    specialUpgrades: {
+      elevator: false,
+      stabilizer: 0,
+      crystalLab: false,
+      luxury: 0,
+    },
+    stabilityBuffUntil: 0,
+    currentEvent: {
+      type: null,
+      endsAt: 0,
+      penaltyApplied: false,
+      mineId: null,
+    },
   };
 
-  let state = { ...defaultState };
+  let state = { ...defaultState, specialUpgrades: { ...defaultState.specialUpgrades }, currentEvent: { ...defaultState.currentEvent } };
   let sessionStarted = false;
   let leaderboardMode = "global"; // "global" | "room"
   let supabaseOnline = true;
   let lastSyncError = null;
   let prevChargeActive = false;
   let userInteracted = false;
+
+  function getMinePreset(id) {
+    return MINE_PRESETS.find((m) => m.id === id) || MINE_PRESETS[0];
+  }
+
+  function getCurrentMine() {
+    return state.mines[state.currentMineId];
+  }
+
+  function updateCurrentMine(updater) {
+    const mine = getCurrentMine();
+    if (!mine) return;
+    updater(mine);
+  }
+
+  function bestDepthAcrossMines() {
+    return Math.max(0, ...Object.values(state.mines || {}).map((m) => m.depth || 0));
+  }
 
   function markInteraction() {
     if (userInteracted) return;
@@ -903,19 +1069,19 @@
 
   // cost helpers (simple exponential-ish)
   function axeCost(level) {
-    return Math.round(10 * Math.pow(1.8, level - 1));
+    return Math.round(12 * Math.pow(1.95, level - 1));
   }
   function minerCost(count) {
-    return Math.round(25 * Math.pow(1.6, count));
+    return Math.round(30 * Math.pow(1.75, count));
   }
   function drillCost(level) {
-    return Math.round(100 * Math.pow(2.2, level));
+    return Math.round(120 * Math.pow(2.35, level));
   }
   function radarCost(level) {
-    return Math.round(120 * Math.pow(1.7, level));
+    return Math.round(150 * Math.pow(1.85, level));
   }
   function efficiencyCost(level) {
-    return Math.round(150 * Math.pow(1.65, level));
+    return Math.round(200 * Math.pow(1.75, level));
   }
 
   // ===================== DOM refs =====================
@@ -954,6 +1120,21 @@
 
   const leaderboardListEl = document.getElementById("leaderboard-list");
   const depthRulerEl = document.getElementById("depth-ruler");
+  const mineTabsEl = document.getElementById("mine-tabs");
+  const collapseWarningEl = document.getElementById("collapse-warning");
+  const eventPanel = document.getElementById("event-panel");
+  const eventLabel = document.getElementById("event-label");
+  const eventTimer = document.getElementById("event-timer");
+  const btnRepair = document.getElementById("btn-repair");
+
+  const btnUpgradeElevator = document.getElementById("btn-upgrade-elevator");
+  const btnUpgradeStabilizer = document.getElementById("btn-upgrade-stabilizer");
+  const btnUpgradeCrystalLab = document.getElementById("btn-upgrade-crystallab");
+  const btnUpgradeLuxury = document.getElementById("btn-upgrade-luxury");
+  const elevatorCostLabel = document.getElementById("elevator-cost");
+  const stabilizerCostLabel = document.getElementById("stabilizer-cost");
+  const crystalLabCostLabel = document.getElementById("crystallab-cost");
+  const luxuryCostLabel = document.getElementById("luxury-cost");
 
   const btnStartSolo = document.getElementById("btn-start-solo");
   const btnJoinRoom = document.getElementById("btn-join-room");
@@ -1070,6 +1251,37 @@
       if (!raw) return;
       const saved = JSON.parse(raw);
       state = { ...defaultState, ...saved };
+
+      // migrate old flat fields
+      if (!state.mines) {
+        state.mines = {
+          main: {
+            id: "main",
+            name: "Ana Maden",
+            depth: saved.depth || 0,
+            axeLevel: saved.axeLevel || 1,
+            miners: saved.miners || 0,
+            drillLevel: saved.drillLevel || 0,
+            radarLevel: saved.radarLevel || 0,
+            efficiencyLevel: saved.efficiencyLevel || 0,
+          },
+        };
+        state.currentMineId = "main";
+      }
+      // merge missing defaults inside mines
+      Object.values(state.mines).forEach((mine) => {
+        mine.axeLevel ??= 1;
+        mine.miners ??= 0;
+        mine.drillLevel ??= 0;
+        mine.radarLevel ??= 0;
+        mine.efficiencyLevel ??= 0;
+        mine.depth ??= 0;
+        mine.name ??= getMinePreset(mine.id)?.name || "Maden";
+      });
+
+      state.specialUpgrades = { ...defaultState.specialUpgrades, ...(state.specialUpgrades || {}) };
+      state.currentEvent = { ...defaultState.currentEvent, ...(state.currentEvent || {}) };
+      state.stabilityBuffUntil = state.stabilityBuffUntil || 0;
     } catch (e) {
       console.error("Failed to load state", e);
     }
@@ -1080,6 +1292,139 @@
       localStorage.setItem(LS_KEY, JSON.stringify(state));
     } catch (e) {
       console.error("Failed to save state", e);
+    }
+  }
+
+  function isCollapseActive() {
+    return (
+      state.currentEvent &&
+      state.currentEvent.type === "collapse" &&
+      state.currentEvent.mineId === state.currentMineId &&
+      Date.now() < state.currentEvent.endsAt
+    );
+  }
+
+  function updateEventUI() {
+    if (!eventPanel) return;
+    if (isCollapseActive()) {
+      eventPanel.classList.add("active");
+      const remaining = Math.max(0, state.currentEvent.endsAt - Date.now());
+      eventLabel.textContent = "⚠️ Göçük! İşçiler kaçmaya çalışıyor…";
+      eventTimer.textContent = `${(remaining / 1000).toFixed(1)} sn`;
+      collapseWarningEl.classList.add("active");
+    } else {
+      collapseWarningEl.classList.remove("active");
+      eventLabel.textContent = "Göçük yok, kazmaya devam!";
+      eventTimer.textContent = "–";
+      eventPanel.classList.remove("active");
+    }
+  }
+
+  function renderMineTabs() {
+    if (!mineTabsEl) return;
+    mineTabsEl.innerHTML = "";
+    Object.values(state.mines).forEach((mine) => {
+      const btn = document.createElement("button");
+      btn.className = "mine-tab";
+      if (mine.id === state.currentMineId) btn.classList.add("active");
+      btn.textContent = mine.name;
+      btn.addEventListener("click", () => {
+        state.currentMineId = mine.id;
+        recalcDerivedStats();
+        updateStatsUI();
+        renderMineTabs();
+        log(`${mine.name} seçildi.`);
+        saveLocalState();
+      });
+      mineTabsEl.appendChild(btn);
+    });
+
+    const nextPreset = MINE_PRESETS.find((p) => !state.mines[p.id]);
+    if (nextPreset) {
+      const addBtn = document.createElement("button");
+      addBtn.className = "mine-tab add";
+      addBtn.textContent = "+ Yeni Şaft Aç";
+      addBtn.addEventListener("click", () => {
+        unlockNextMine();
+      });
+      mineTabsEl.appendChild(addBtn);
+    }
+  }
+
+  function unlockNextMine() {
+    const unlockedExtras = Math.max(0, Object.keys(state.mines).length - 1);
+    const cost = unlockedExtras === 0 ? { money: 500, gold: 200 } : { money: 2000, oil: 400, gems: 40 };
+    if (state.money < (cost.money || 0) || state.gold < (cost.gold || 0) || state.oil < (cost.oil || 0) || state.gems < (cost.gems || 0)) {
+      log("Kaynakların yeni şaft için yetersiz.");
+      return;
+    }
+    const preset = MINE_PRESETS.find((p) => !state.mines[p.id]);
+    if (!preset) return;
+    state.money -= cost.money || 0;
+    state.gold -= cost.gold || 0;
+    state.oil -= cost.oil || 0;
+    state.gems -= cost.gems || 0;
+
+    state.mines[preset.id] = {
+      id: preset.id,
+      name: preset.name,
+      depth: 0,
+      axeLevel: 1,
+      miners: 0,
+      drillLevel: 0,
+      radarLevel: 0,
+      efficiencyLevel: 0,
+    };
+    state.currentMineId = preset.id;
+    recalcDerivedStats();
+    renderMineTabs();
+    updateStatsUI();
+    log(`Yeni maden açıldı: ${preset.name}`);
+    soundManager.playUpgrade();
+    saveLocalState();
+  }
+
+  function triggerCollapse() {
+    const mine = getCurrentMine();
+    if (!mine) return;
+    state.currentEvent = {
+      type: "collapse",
+      endsAt: Date.now() + 25000,
+      penaltyApplied: false,
+      mineId: mine.id,
+    };
+    shakeStrength = 1.5;
+    shakeTime = 1.2;
+    log(`⚠️ Göçük! ${mine.name} kapandı, işçiler kaçıyor.`);
+    soundManager.playUpgrade();
+    updateEventUI();
+  }
+
+  function resolveCollapse(paid = false) {
+    if (!state.currentEvent || state.currentEvent.type !== "collapse") return;
+    if (paid) {
+      state.stabilityBuffUntil = Date.now() + 60000;
+      log("Onarım yapıldı, kısa süreli stabilite bonusu aktif!");
+    } else {
+      log("Göçük sona erdi, kazmaya dön! ");
+    }
+    state.currentEvent = { ...defaultState.currentEvent };
+    recalcDerivedStats();
+    updateEventUI();
+    soundManager.playUpgrade();
+    saveLocalState();
+  }
+
+  function maybeTriggerCollapse(dt) {
+    const mine = getCurrentMine();
+    if (!mine || isCollapseActive()) return;
+    if (mine.depth < 160) return;
+    const preset = getMinePreset(mine.id);
+    const stabilizerCut = state.specialUpgrades.stabilizer ? 0.6 : 1;
+    const risk = (preset.collapseRisk || 0.01) * (1 + mine.depth / 600) * stabilizerCut;
+    const chance = risk * dt;
+    if (Math.random() < chance) {
+      triggerCollapse();
     }
   }
 
@@ -1105,42 +1450,53 @@
   }
 
   function chargeMultiplier() {
-    return 2 + state.drillLevel * 0.15 + state.radarLevel * 0.05;
+    const mine = getCurrentMine();
+    if (!mine) return 1;
+    return 2 + mine.drillLevel * 0.15 + mine.radarLevel * 0.05;
   }
 
   function recalcDerivedStats() {
-    const efficiencyBoost = 1 + state.efficiencyLevel * 0.08;
-    const basePerClick = 1 + (state.axeLevel - 1) * 0.6;
+    const mine = getCurrentMine();
+    if (!mine) return;
+    const luxuryBoost = 1 + (state.specialUpgrades.luxury || 0) * 0.05;
+    const efficiencyBoost = 1 + mine.efficiencyLevel * 0.07;
+    const basePerClick = (1 + (mine.axeLevel - 1) * 0.65) * luxuryBoost;
     const activeChargeBoost = isChargeActive() ? chargeMultiplier() : 1;
     state.perClick = basePerClick * efficiencyBoost * activeChargeBoost;
-    const autoBase = state.miners * 0.4 + state.drillLevel * 1.5;
-    state.autoRate = autoBase * (1 + state.efficiencyLevel * 0.04);
+    let autoBase = mine.miners * 0.32 + mine.drillLevel * 1.4;
+    autoBase *= 1 + mine.efficiencyLevel * 0.05;
+    if (state.specialUpgrades.elevator) autoBase *= 1.2;
+    if (Date.now() < state.stabilityBuffUntil) autoBase *= 1.1;
+    state.autoRate = isCollapseActive() ? 0 : autoBase;
   }
 
   function applyMining(amount, isAuto = false) {
-    if (amount <= 0)
+    const mine = getCurrentMine();
+    if (!mine || amount <= 0)
       return { moneyGain: 0, goldGain: 0, oilGain: 0, gemGain: 0 };
 
-    state.depth += amount;
-    if (state.depth < 0) state.depth = 0;
+    mine.depth += amount;
+    if (mine.depth < 0) mine.depth = 0;
 
+    const preset = getMinePreset(mine.id);
     const base = amount;
-    const depthFactor = 1 + state.depth * 0.0004;
-    const goldGain = base * (0.25 + Math.random() * 0.3) * depthFactor;
-    const oilGain = base * (0.15 + Math.random() * 0.25) * (1 + state.radarLevel * 0.05);
-    const gemChance = 0.02 + state.radarLevel * 0.01 + Math.min(0.15, state.depth / 4000);
-    const gemGain = Math.random() < gemChance ? base * (1.5 + Math.random() * (1 + state.radarLevel * 0.3)) : 0;
+    const depthFactor = 1 + mine.depth * 0.00055;
+    const goldGain = base * (0.25 + Math.random() * 0.28) * depthFactor * preset.goldBonus;
+    const oilGain = base * (0.16 + Math.random() * 0.25) * (1 + mine.radarLevel * 0.05) * preset.oilBonus;
+    const crystalBoost = state.specialUpgrades.crystalLab ? 0.3 : 0;
+    const gemChance = 0.02 + mine.radarLevel * 0.01 + crystalBoost + Math.min(0.18, mine.depth / 3800);
+    const gemGain = Math.random() < gemChance ? base * (1.4 + Math.random() * (1 + mine.radarLevel * 0.35)) * preset.gemBonus : 0;
 
     state.gold += goldGain;
     state.oil += oilGain;
     state.gems += gemGain;
 
-    const moneyGainRaw = goldGain * 1 + oilGain * 1.5 + gemGain * 6;
-    const moneyGain = moneyGainRaw * (1 + state.efficiencyLevel * 0.12);
+    const moneyGainRaw = goldGain * 1 + oilGain * 1.45 + gemGain * 6.5;
+    const moneyGain = moneyGainRaw * (1 + mine.efficiencyLevel * 0.12);
     state.money += moneyGain;
 
     if (!isAuto) {
-      log(`+${moneyGain.toFixed(1)} 💰 (kazma) · Derinlik: ${state.depth.toFixed(1)} m`);
+      log(`+${moneyGain.toFixed(1)} 💰 (kazma) · Derinlik: ${mine.depth.toFixed(1)} m`);
     }
 
     return { moneyGain, goldGain, oilGain, gemGain };
@@ -1157,23 +1513,30 @@
   }
 
   function updateStatsUI() {
-    depthLabel.textContent = `${state.depth.toFixed(1)} m`;
+    const mine = getCurrentMine();
+    if (!mine) return;
+    depthLabel.textContent = `${mine.depth.toFixed(1)} m`;
     moneyLabel.textContent = state.money.toFixed(1);
     goldLabel.textContent = state.gold.toFixed(1);
     oilLabel.textContent = state.oil.toFixed(1);
     gemsLabel.textContent = state.gems.toFixed(1);
     perClickLabel.textContent = `${state.perClick.toFixed(1)} m`;
     autoRateLabel.textContent = `${state.autoRate.toFixed(2)} m/sn`;
-    axeLevelLabel.textContent = state.axeLevel;
-    minersLabel.textContent = state.miners;
-    drillLevelLabel.textContent = state.drillLevel;
-    radarLevelLabel.textContent = state.radarLevel;
-    efficiencyLevelLabel.textContent = state.efficiencyLevel;
-    axeCostLabel.textContent = axeCost(state.axeLevel).toFixed(0);
-    minerCostLabel.textContent = minerCost(state.miners).toFixed(0);
-    drillCostLabel.textContent = drillCost(state.drillLevel).toFixed(0);
-    radarCostLabel.textContent = radarCost(state.radarLevel).toFixed(0);
-    efficiencyCostLabel.textContent = efficiencyCost(state.efficiencyLevel).toFixed(0);
+    axeLevelLabel.textContent = mine.axeLevel;
+    minersLabel.textContent = mine.miners;
+    drillLevelLabel.textContent = mine.drillLevel;
+    radarLevelLabel.textContent = mine.radarLevel;
+    efficiencyLevelLabel.textContent = mine.efficiencyLevel;
+    axeCostLabel.textContent = axeCost(mine.axeLevel).toFixed(0);
+    minerCostLabel.textContent = minerCost(mine.miners).toFixed(0);
+    drillCostLabel.textContent = drillCost(mine.drillLevel).toFixed(0);
+    radarCostLabel.textContent = radarCost(mine.radarLevel).toFixed(0);
+    efficiencyCostLabel.textContent = efficiencyCost(mine.efficiencyLevel).toFixed(0);
+
+    elevatorCostLabel.textContent = "300 🪙 + 20 💎";
+    stabilizerCostLabel.textContent = "250 🪙 + 10 💎";
+    crystalLabCostLabel.textContent = "500 🪙 + 35 💎";
+    luxuryCostLabel.textContent = `100 🪙 + 5 💎 (Lv.${state.specialUpgrades.luxury || 0})`;
 
     const readyIn = nextChargeReadyInMs();
     if (isChargeActive()) {
@@ -1202,6 +1565,21 @@
     } else {
       roomLabel.textContent = "Global sıralama";
     }
+
+    const collapse = isCollapseActive();
+    btnDig.disabled = collapse;
+    btnUpgradeAxe.disabled = !canAfford(axeCost(mine.axeLevel));
+    btnHireMiner.disabled = !canAfford(minerCost(mine.miners));
+    btnUpgradeDrill.disabled = !canAfford(drillCost(mine.drillLevel));
+    btnUpgradeRadar.disabled = !canAfford(radarCost(mine.radarLevel));
+    btnUpgradeEfficiency.disabled = !canAfford(efficiencyCost(mine.efficiencyLevel));
+
+    btnUpgradeElevator.disabled = state.specialUpgrades.elevator || state.gold < 300 || state.gems < 20;
+    btnUpgradeStabilizer.disabled = state.specialUpgrades.stabilizer >= 1 || state.gold < 250 || state.gems < 10;
+    btnUpgradeCrystalLab.disabled = state.specialUpgrades.crystalLab || state.gold < 500 || state.gems < 35;
+    btnUpgradeLuxury.disabled = state.gold < 100 || state.gems < 5;
+
+    updateEventUI();
   }
 
   // ===================== Three.js =====================
@@ -1209,6 +1587,7 @@
   let shaftGroup, drillMesh, minerGroup, minerArmL, minerArmR, pickaxeMesh;
   let oreDecorations = [];
   let dustParticles = [];
+  let minimapMarker;
   let lastFrameTime = performance.now();
   let digPulse = 0;
   let shakeTime = 0;
@@ -1217,6 +1596,12 @@
   let autoDigTimer = 0;
   let autoSoundTimer = 0;
   let depthTargetY = 0;
+  let targetYaw = -0.6;
+  let currentYaw = -0.6;
+  let targetPitch = -0.22;
+  let currentPitch = -0.22;
+  let isDragging = false;
+  let dragStart = { x: 0, y: 0 };
   const tempVec = new THREE.Vector3();
 
   const dustMaterial = new THREE.MeshStandardMaterial({
@@ -1323,42 +1708,44 @@
 
   function initThree() {
     const canvas = document.getElementById("mine-canvas");
-    const rect = canvas.getBoundingClientRect();
+    canvas.height = 260;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
 
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    renderer.setSize(rect.width, rect.height);
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setSize(w, h, false);
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.25;
     renderer.autoClear = false;
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b1220);
-    scene.fog = new THREE.Fog(0x020617, 14, 85);
+    scene.background = new THREE.Color(0x0f172a);
+    scene.fog = new THREE.Fog(0x0b1220, 12, 90);
 
-    camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.1, 300);
-    camera.position.set(8, 6, 10);
-    camera.lookAt(0, 0, 0);
+    camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 300);
+    camera.position.set(7, 7, 9);
+    camera.lookAt(0, -5, 0);
 
     minimapCamera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 80);
     minimapCamera.position.set(0, 20, 0);
     minimapCamera.lookAt(0, 0, 0);
 
-    const hemi = new THREE.HemisphereLight(0x9cc5ff, 0x2e1b0f, 1.2);
+    const hemi = new THREE.HemisphereLight(0xc3dafb, 0x3a2415, 1.5);
     scene.add(hemi);
-    const dirLight = new THREE.DirectionalLight(0xfff2cc, 1.4);
-    dirLight.position.set(6, 12, 6);
+    const dirLight = new THREE.DirectionalLight(0xfff7d6, 1.6);
+    dirLight.position.set(8, 14, 8);
     scene.add(dirLight);
-    const point = new THREE.PointLight(0xfacc15, 1.3, 18);
-    point.position.set(-1, 0.5, 1);
+    const point = new THREE.PointLight(0xfacc15, 1.6, 22);
+    point.position.set(-1, 1.2, 1);
     scene.add(point);
 
     const groundGeo = new THREE.PlaneGeometry(30, 30);
     const groundMat = new THREE.MeshStandardMaterial({
-      color: 0x3b2f26,
-      roughness: 0.95,
-      metalness: 0.05,
+      color: 0x5b4631,
+      roughness: 0.85,
+      metalness: 0.08,
       map: createGroundTexture(),
     });
     const ground = new THREE.Mesh(groundGeo, groundMat);
@@ -1368,29 +1755,32 @@
 
     shaftGroup = new THREE.Group();
     const wallMat = new THREE.MeshStandardMaterial({
-      color: 0x111827,
-      roughness: 0.8,
-      metalness: 0.15,
+      color: 0x3a2b22,
+      roughness: 0.75,
+      metalness: 0.12,
     });
     const wallMatDeep = new THREE.MeshStandardMaterial({
-      color: 0x0b1324,
-      roughness: 0.85,
-      metalness: 0.18,
+      color: 0x2c1f17,
+      roughness: 0.8,
+      metalness: 0.12,
     });
-    const wallGeoX = new THREE.BoxGeometry(8, 180, 1);
-    const wallGeoZ = new THREE.BoxGeometry(1, 180, 8);
+    const wallGeoX = new THREE.BoxGeometry(7, 130, 0.8);
+    const wallGeoZ = new THREE.BoxGeometry(0.8, 130, 7);
     const wall1 = new THREE.Mesh(wallGeoX, wallMat);
-    wall1.position.set(0, -90, -2.7);
+    wall1.position.set(0, -65, -2.3);
     const wall2 = new THREE.Mesh(wallGeoX, wallMatDeep);
-    wall2.position.set(0, -90, 2.7);
+    wall2.position.set(0, -65, 2.3);
     const wall3 = new THREE.Mesh(wallGeoZ, wallMatDeep);
-    wall3.position.set(-2.7, -90, 0);
+    wall3.position.set(-2.3, -65, 0);
     const wall4 = new THREE.Mesh(wallGeoZ, wallMat);
-    wall4.position.set(2.7, -90, 0);
+    wall4.position.set(2.3, -65, 0);
     shaftGroup.add(wall1, wall2, wall3, wall4);
 
     const rimGeo = new THREE.BoxGeometry(6.4, 0.4, 6.4);
-    const rim = new THREE.Mesh(rimGeo, new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.7 }));
+    const rim = new THREE.Mesh(
+      rimGeo,
+      new THREE.MeshStandardMaterial({ color: 0x4a3324, roughness: 0.65, metalness: 0.08 })
+    );
     rim.position.set(0, 0.2, 0);
     shaftGroup.add(rim);
     scene.add(shaftGroup);
@@ -1424,14 +1814,37 @@
     scene.add(drillGroup);
     drillMesh = drillGroup;
 
+    const markerGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+    const markerMat = new THREE.MeshStandardMaterial({ color: 0x7dd3fc, emissive: 0x38bdf8, emissiveIntensity: 1.3 });
+    minimapMarker = new THREE.Mesh(markerGeo, markerMat);
+    minimapMarker.position.set(0, 0, 0);
+    scene.add(minimapMarker);
+
     minerGroup = buildMiner();
     scene.add(minerGroup);
 
     window.addEventListener("resize", () => {
-      const r = canvas.getBoundingClientRect();
-      camera.aspect = r.width / r.height;
+      const w2 = canvas.clientWidth;
+      const h2 = canvas.clientHeight;
+      camera.aspect = w2 / h2;
       camera.updateProjectionMatrix();
-      renderer.setSize(r.width, r.height);
+      renderer.setSize(w2, h2, false);
+    });
+
+    canvas.addEventListener("pointerdown", (e) => {
+      isDragging = true;
+      dragStart = { x: e.clientX, y: e.clientY };
+    });
+    window.addEventListener("pointermove", (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      dragStart = { x: e.clientX, y: e.clientY };
+      targetYaw = THREE.MathUtils.clamp(targetYaw - dx * 0.003, -Math.PI * 0.8, Math.PI * 0.2);
+      targetPitch = THREE.MathUtils.clamp(targetPitch - dy * 0.002, -0.6, 0.35);
+    });
+    window.addEventListener("pointerup", () => {
+      isDragging = false;
     });
   }
 
@@ -1466,8 +1879,13 @@
   }
 
   function updateOreVisibility() {
+    const mine = getCurrentMine();
+    const depth = mine ? mine.depth : 0;
     oreDecorations.forEach((o) => {
-      o.mesh.visible = state.depth + 2 >= o.depth;
+      o.mesh.visible = depth + 4 >= o.depth;
+      if (o.mesh.visible) {
+        o.mesh.material.emissiveIntensity = 0.6;
+      }
     });
   }
 
@@ -1494,8 +1912,10 @@
     entries.forEach((entry, idx) => {
       const el = document.createElement("div");
       el.className = "floating-text";
-      el.style.left = `${screen.x}px`;
-      el.style.top = `${screen.y - idx * 12}px`;
+      const clampedX = Math.min(floatingContainer.clientWidth - 12, Math.max(12, screen.x));
+      const clampedY = Math.min(floatingContainer.clientHeight - 12, Math.max(12, screen.y - idx * 14 - 10));
+      el.style.left = `${clampedX}px`;
+      el.style.top = `${clampedY}px`;
       el.style.color = entry.color;
       el.textContent = entry.text;
       floatingContainer.appendChild(el);
@@ -1528,23 +1948,27 @@
 
   function updateThree(dt) {
     if (!scene || !camera || !renderer) return;
-
+    const mine = getCurrentMine();
+    const depthVal = mine ? mine.depth : 0;
     updateOreVisibility();
     updateDust(dt);
     animateMiner(dt);
 
     const maxVisualDepth = 200;
-    const depthRatio = Math.min(1, state.depth / maxVisualDepth);
-    depthTargetY = -Math.min(state.depth * 0.18, 55);
+    const depthRatio = Math.min(1, depthVal / maxVisualDepth);
+    depthTargetY = -Math.min(depthVal * 0.16, 55);
 
-    const desiredCamY = 6 + depthTargetY * 0.1;
-    camera.position.y = THREE.MathUtils.lerp(camera.position.y, desiredCamY, 0.08);
-    camera.position.x = THREE.MathUtils.lerp(camera.position.x, 7.5, 0.08);
-    camera.position.z = THREE.MathUtils.lerp(camera.position.z, 9.5, 0.08);
-    const lookTargetY = depthTargetY * 0.08;
+    currentYaw = THREE.MathUtils.lerp(currentYaw, targetYaw, 0.08);
+    currentPitch = THREE.MathUtils.lerp(currentPitch, targetPitch, 0.08);
+    const radius = 10;
+    const camX = Math.cos(currentYaw) * radius;
+    const camZ = Math.sin(currentYaw) * radius;
+    const camY = 7 + depthTargetY * 0.08 + Math.sin(currentPitch) * 2;
+    camera.position.set(camX, camY, camZ);
+    const lookTargetY = depthTargetY * 0.1;
     camera.lookAt(0, lookTargetY, 0);
 
-    minimapCamera.position.y = THREE.MathUtils.lerp(minimapCamera.position.y, 18 + depthRatio * 2, 0.1);
+    minimapCamera.position.y = THREE.MathUtils.lerp(minimapCamera.position.y, 18 + depthRatio * 3, 0.1);
 
     if (shaftGroup) {
       shaftGroup.position.y = THREE.MathUtils.lerp(shaftGroup.position.y || 0, depthTargetY, 0.15);
@@ -1558,6 +1982,11 @@
     }
     if (minerGroup) {
       minerGroup.position.y = drillMesh.position.y + 0.3;
+    }
+
+    if (minimapMarker && drillMesh) {
+      minimapMarker.position.copy(drillMesh.position);
+      minimapMarker.position.y += 0.5;
     }
 
     if (digPulse > 0) {
@@ -1597,7 +2026,7 @@
         .from("mg_players")
         .insert({
           name: state.playerName,
-          best_depth: state.depth,
+          best_depth: bestDepthAcrossMines(),
           total_gold: state.gold,
           room_code: state.roomCode || null,
           last_online: new Date().toISOString(),
@@ -1635,7 +2064,7 @@
       const { error } = await supabase
         .from("mg_players")
         .update({
-          best_depth: state.depth,
+          best_depth: bestDepthAcrossMines(),
           total_gold: state.gold,
           room_code: state.roomCode || null,
           last_online: new Date().toISOString(),
@@ -1648,7 +2077,7 @@
       } else {
         supabaseOnline = true;
         lastSyncError = null;
-        state.bestDepthSynced = state.depth;
+        state.bestDepthSynced = bestDepthAcrossMines();
       }
       updateOnlineStatusUI();
       saveLocalState();
@@ -1866,6 +2295,10 @@
   btnDig.addEventListener("click", () => {
     if (!sessionStarted) return;
     markInteraction();
+    if (isCollapseActive()) {
+      log("Göçük sırasında kazma çok zor, önce onar!");
+      return;
+    }
     const gains = applyMining(state.perClick, false);
     minerDigTimer = 0.4;
     digPulse = 1;
@@ -1883,14 +2316,15 @@
   btnUpgradeAxe.addEventListener("click", () => {
     if (!sessionStarted) return;
     markInteraction();
-    const cost = axeCost(state.axeLevel);
+    const mine = getCurrentMine();
+    const cost = axeCost(mine.axeLevel);
     if (!spend(cost)) {
       log("Yeterli paran yok (Kazma yükseltme).");
       return;
     }
-    state.axeLevel += 1;
+    mine.axeLevel += 1;
     recalcDerivedStats();
-    log(`Kazma seviyesi ${state.axeLevel} oldu.`);
+    log(`${mine.name} kazma seviyesi ${mine.axeLevel} oldu.`);
     soundManager.playUpgrade();
     updateStatsUI();
     saveLocalState();
@@ -1899,14 +2333,15 @@
   btnHireMiner.addEventListener("click", () => {
     if (!sessionStarted) return;
     markInteraction();
-    const cost = minerCost(state.miners);
+    const mine = getCurrentMine();
+    const cost = minerCost(mine.miners);
     if (!spend(cost)) {
       log("Yeterli paran yok (İşçi kiralama).");
       return;
     }
-    state.miners += 1;
+    mine.miners += 1;
     recalcDerivedStats();
-    log(`Yeni işçi işe alındı. Toplam: ${state.miners}.`);
+    log(`${mine.name} için yeni işçi işe alındı. Toplam: ${mine.miners}.`);
     soundManager.playUpgrade();
     updateStatsUI();
     saveLocalState();
@@ -1915,14 +2350,15 @@
   btnUpgradeDrill.addEventListener("click", () => {
     if (!sessionStarted) return;
     markInteraction();
-    const cost = drillCost(state.drillLevel);
+    const mine = getCurrentMine();
+    const cost = drillCost(mine.drillLevel);
     if (!spend(cost)) {
       log("Yeterli paran yok (Matkap kulesi).");
       return;
     }
-    state.drillLevel += 1;
+    mine.drillLevel += 1;
     recalcDerivedStats();
-    log(`Matkap seviyesi ${state.drillLevel} oldu.`);
+    log(`${mine.name} matkap seviyesi ${mine.drillLevel} oldu.`);
     soundManager.playUpgrade();
     updateStatsUI();
     saveLocalState();
@@ -1931,14 +2367,15 @@
   btnUpgradeRadar.addEventListener("click", () => {
     if (!sessionStarted) return;
     markInteraction();
-    const cost = radarCost(state.radarLevel);
+    const mine = getCurrentMine();
+    const cost = radarCost(mine.radarLevel);
     if (!spend(cost)) {
       log("Yeterli paran yok (Jeo-Radar).");
       return;
     }
-    state.radarLevel += 1;
+    mine.radarLevel += 1;
     recalcDerivedStats();
-    log(`Jeo-radar seviyesi ${state.radarLevel} oldu.`);
+    log(`${mine.name} jeo-radar seviyesi ${mine.radarLevel} oldu.`);
     soundManager.playUpgrade();
     updateStatsUI();
     saveLocalState();
@@ -1947,17 +2384,83 @@
   btnUpgradeEfficiency.addEventListener("click", () => {
     if (!sessionStarted) return;
     markInteraction();
-    const cost = efficiencyCost(state.efficiencyLevel);
+    const mine = getCurrentMine();
+    const cost = efficiencyCost(mine.efficiencyLevel);
     if (!spend(cost)) {
       log("Yeterli paran yok (Verimlilik).");
       return;
     }
-    state.efficiencyLevel += 1;
+    mine.efficiencyLevel += 1;
     recalcDerivedStats();
-    log(`Çıkarma verimliliği ${state.efficiencyLevel} oldu.`);
+    log(`${mine.name} çıkarma verimliliği ${mine.efficiencyLevel} oldu.`);
     soundManager.playUpgrade();
     updateStatsUI();
     saveLocalState();
+  });
+
+  function spendSpecial(cost) {
+    if (state.gold < (cost.gold || 0) || state.gems < (cost.gems || 0)) return false;
+    state.gold -= cost.gold || 0;
+    state.gems -= cost.gems || 0;
+    return true;
+  }
+
+  btnUpgradeElevator.addEventListener("click", () => {
+    if (!sessionStarted || state.specialUpgrades.elevator) return;
+    markInteraction();
+    if (!spendSpecial({ gold: 300, gems: 20 })) {
+      log("Asansör için yeterli altın/gems yok.");
+      return;
+    }
+    state.specialUpgrades.elevator = true;
+    recalcDerivedStats();
+    log("Sonsuz Asansör kuruldu! Tüm oto kazma hızlandı.");
+    soundManager.playUpgrade();
+    updateStatsUI();
+    saveLocalState();
+  });
+
+  btnUpgradeStabilizer.addEventListener("click", () => {
+    if (!sessionStarted || state.specialUpgrades.stabilizer >= 1) return;
+    markInteraction();
+    if (!spendSpecial({ gold: 250, gems: 10 })) {
+      log("Stabilizör için yeterli kaynak yok.");
+      return;
+    }
+    state.specialUpgrades.stabilizer = 1;
+    log("Patlama Stabilizörü kuruldu. Göçük etkisi azaldı.");
+    soundManager.playUpgrade();
+    saveLocalState();
+    updateStatsUI();
+  });
+
+  btnUpgradeCrystalLab.addEventListener("click", () => {
+    if (!sessionStarted || state.specialUpgrades.crystalLab) return;
+    markInteraction();
+    if (!spendSpecial({ gold: 500, gems: 35 })) {
+      log("Kristal Bilgi Merkezi için yeterli kaynak yok.");
+      return;
+    }
+    state.specialUpgrades.crystalLab = true;
+    log("Kristal Bilgi Merkezi açıldı. Maden bulma oranı arttı!");
+    soundManager.playUpgrade();
+    saveLocalState();
+    updateStatsUI();
+  });
+
+  btnUpgradeLuxury.addEventListener("click", () => {
+    if (!sessionStarted) return;
+    markInteraction();
+    if (!spendSpecial({ gold: 100, gems: 5 })) {
+      log("Lüks Ekipman için kaynak yetersiz.");
+      return;
+    }
+    state.specialUpgrades.luxury += 1;
+    recalcDerivedStats();
+    log(`Lüks Ekipman seviyesi ${state.specialUpgrades.luxury} oldu.`);
+    soundManager.playUpgrade();
+    saveLocalState();
+    updateStatsUI();
   });
 
   btnToggleSfx.addEventListener("click", () => {
@@ -1977,7 +2480,8 @@
     markInteraction();
     if (nextChargeReadyInMs() > 0 && !isChargeActive()) return;
     const duration = 5000;
-    const cooldown = Math.max(8000, 16000 - state.drillLevel * 400 - state.radarLevel * 200);
+    const mine = getCurrentMine();
+    const cooldown = Math.max(8000, 16000 - mine.drillLevel * 400 - mine.radarLevel * 200);
     state.chargeActiveUntil = Date.now() + duration;
     state.chargeReadyAt = Date.now() + cooldown;
     recalcDerivedStats();
@@ -2005,6 +2509,18 @@
     loadLeaderboard();
   });
 
+  btnRepair.addEventListener("click", () => {
+    if (!isCollapseActive()) return;
+    const cost = { money: 200, oil: 100 };
+    if (state.money < cost.money || state.oil < cost.oil) {
+      log("Onarım için yeterli nakit/petrol yok.");
+      return;
+    }
+    state.money -= cost.money;
+    state.oil -= cost.oil;
+    resolveCollapse(true);
+  });
+
   // ===================== Game loop =====================
   function loop(now) {
     const dt = (now - lastFrameTime) / 1000;
@@ -2016,8 +2532,10 @@
         recalcDerivedStats();
       }
       prevChargeActive = chargeActive;
+      maybeTriggerCollapse(dt);
 
-      if (state.autoRate > 0) {
+      const collapseActive = isCollapseActive();
+      if (state.autoRate > 0 && !collapseActive) {
         const gains = applyMining(state.autoRate * dt, true);
         minerDigTimer = Math.max(minerDigTimer, 0.18);
         autoSoundTimer -= dt;
@@ -2026,6 +2544,9 @@
           autoSoundTimer = Math.max(0.6, 1.5 - state.autoRate * 0.05);
         }
         if (gains.gemGain > 0 && Math.random() < 0.15) soundManager.playGem();
+      }
+      if (state.currentEvent.type === "collapse" && Date.now() > state.currentEvent.endsAt) {
+        resolveCollapse(false);
       }
       updateStatsUI();
     }
@@ -2055,6 +2576,7 @@
   updateOnlineStatusUI();
   recalcDerivedStats();
   updateStatsUI();
+  renderMineTabs();
   soundManager.updateMusicState();
   if (state.playerName) {
     playerNameInput.value = state.playerName;
