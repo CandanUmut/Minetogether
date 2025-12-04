@@ -468,6 +468,21 @@
       box-shadow: 0 4px 10px rgba(56, 189, 248, 0.25);
     }
 
+    .camera-move {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+      gap: 6px;
+    }
+
+    .camera-move button {
+      background: rgba(148, 163, 184, 0.2);
+      color: var(--text);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      box-shadow: none;
+      font-weight: 700;
+    }
+
     .dig-row {
       display: flex;
       flex-wrap: wrap;
@@ -876,10 +891,18 @@
           <div id="camera-panel" class="camera-panel">
             <div class="panel-title">🎥 Cameras</div>
             <div class="camera-buttons">
-              <button data-cam="overview">Overview</button>
-              <button data-cam="miner">Miner Cam</button>
-              <button data-cam="truck">Truck Cam</button>
-              <button data-cam="deep">Deep Mine</button>
+              <button data-preset="overview">Overview</button>
+              <button data-preset="miner">Miner</button>
+              <button data-preset="truck">Truck</button>
+              <button data-preset="elevator">Elevator</button>
+            </div>
+            <div class="camera-move">
+              <button data-move="up">↑</button>
+              <button data-move="left">←</button>
+              <button data-move="right">→</button>
+              <button data-move="down">↓</button>
+              <button data-move="zoom-in">+</button>
+              <button data-move="zoom-out">−</button>
             </div>
           </div>
 
@@ -1275,7 +1298,7 @@
   const btnViewGlobal = document.getElementById("btn-view-global");
   const btnViewRoom = document.getElementById("btn-view-room");
   const btnRefreshLeaderboard = document.getElementById("btn-refresh-leaderboard");
-  const cameraButtons = document.querySelectorAll('#camera-panel button[data-cam]');
+  const cameraButtons = document.querySelectorAll('#camera-panel button[data-preset]');
 
   const translations = {
     en: {
@@ -1852,6 +1875,7 @@
   // ===================== Three.js =====================
   let scene, camera, minimapCamera, renderer;
   let shaftGroup, drillMesh, minerGroup, minerArmL, minerArmR, pickaxeMesh;
+  let miner, truck, elevatorAnchor;
   let oreDecorations = [];
   let dustParticles = [];
   let minimapMarker;
@@ -1869,21 +1893,12 @@
   let autoDigTimer = 0;
   let autoSoundTimer = 0;
   let depthTargetY = 0;
-  let activeCameraMode = "overview";
-  let cameraTarget = null;
-  let deepCameraAnchor = null;
-  let cameraDistance = 14;
-  let cameraYaw = Math.PI * 0.25;
-  let cameraPitch = -0.25;
-  let isDragging = false;
-  let dragStart = { x: 0, y: 0 };
-  let lastPinchDistance = 0;
+  let currentPreset = "overview";
+  const manualCameraOffset = new THREE.Vector3();
+  const presetTarget = new THREE.Vector3();
   let minerBoostTimer = 0;
   let truckBoostTimer = 0;
   const tempVec = new THREE.Vector3();
-  const cameraTargetVec = new THREE.Vector3();
-  const cameraOffset = new THREE.Vector3();
-  const desiredCameraPos = new THREE.Vector3();
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
 
@@ -2105,8 +2120,10 @@
     scene.background = new THREE.Color(0x0f172a);
     scene.fog = new THREE.Fog(0x0b1220, 12, 90);
 
-    camera = new THREE.PerspectiveCamera(65, w / h, 0.1, 300);
-    camera.fov = 55;
+    camera = new THREE.PerspectiveCamera(65, w / h, 0.1, 500);
+    camera.fov = 65;
+    camera.near = 0.1;
+    camera.far = 500;
     camera.updateProjectionMatrix();
 
     minimapCamera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 80);
@@ -2134,7 +2151,10 @@
     scene.add(ground);
 
     createRailsAndCart(scene);
-    if (cartMesh) cartMesh.name = "truck";
+    if (cartMesh) {
+      cartMesh.name = "truck";
+      truck = cartMesh;
+    }
 
     shaftGroup = new THREE.Group();
     const strataTex = createStrataTexture();
@@ -2209,11 +2229,13 @@
 
     minerGroup = buildMiner();
     minerGroup.name = "miner";
+    miner = minerGroup;
     scene.add(minerGroup);
 
-    deepCameraAnchor = new THREE.Object3D();
-    deepCameraAnchor.position.set(0, -14, 0);
-    scene.add(deepCameraAnchor);
+    elevatorAnchor = new THREE.Object3D();
+    elevatorAnchor.position.set(0, 1.2, 0);
+    elevatorAnchor.name = "elevatorAnchor";
+    scene.add(elevatorAnchor);
 
     window.addEventListener("resize", () => {
       const w2 = canvas.clientWidth;
@@ -2221,69 +2243,6 @@
       camera.aspect = w2 / h2;
       camera.updateProjectionMatrix();
       renderer.setSize(w2, h2, false);
-    });
-
-    canvas.addEventListener("pointerdown", (e) => {
-      isDragging = true;
-      dragStart = { x: e.clientX, y: e.clientY };
-    });
-    window.addEventListener("pointermove", (e) => {
-      if (!isDragging) return;
-      const dx = e.clientX - dragStart.x;
-      const dy = e.clientY - dragStart.y;
-      dragStart = { x: e.clientX, y: e.clientY };
-      const rotateSpeed = 0.005;
-      cameraYaw -= dx * rotateSpeed;
-      cameraPitch = THREE.MathUtils.clamp(cameraPitch - dy * rotateSpeed, -1.2, 0.45);
-    });
-    window.addEventListener("pointerup", () => {
-      isDragging = false;
-    });
-
-    canvas.addEventListener(
-      "wheel",
-      (e) => {
-        e.preventDefault();
-        const zoomSpeed = 0.0015;
-        cameraDistance *= 1 + e.deltaY * zoomSpeed;
-        cameraDistance = THREE.MathUtils.clamp(cameraDistance, 4, 22);
-      },
-      { passive: false }
-    );
-
-    canvas.addEventListener("touchstart", (e) => {
-      if (e.touches.length === 2) {
-        lastPinchDistance = getTouchDistance(e.touches);
-      } else {
-        isDragging = true;
-        dragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      }
-    });
-
-    canvas.addEventListener("touchmove", (e) => {
-      if (e.touches.length === 2) {
-        e.preventDefault();
-        const dist = getTouchDistance(e.touches);
-        if (lastPinchDistance > 0) {
-          const delta = dist - lastPinchDistance;
-          cameraDistance *= 1 - delta * 0.001;
-          cameraDistance = THREE.MathUtils.clamp(cameraDistance, 4, 22);
-        }
-        lastPinchDistance = dist;
-      } else if (isDragging && e.touches.length === 1) {
-        const touch = e.touches[0];
-        const dx = touch.clientX - dragStart.x;
-        const dy = touch.clientY - dragStart.y;
-        dragStart = { x: touch.clientX, y: touch.clientY };
-        const rotateSpeed = 0.006;
-        cameraYaw -= dx * rotateSpeed;
-        cameraPitch = THREE.MathUtils.clamp(cameraPitch - dy * rotateSpeed, -1.2, 0.45);
-      }
-    });
-
-    canvas.addEventListener("touchend", () => {
-      isDragging = false;
-      lastPinchDistance = 0;
     });
 
     canvas.addEventListener("click", onCanvasClick);
@@ -2421,71 +2380,93 @@
     }
   }
 
-  function clampCameraValues() {
-    cameraPitch = THREE.MathUtils.clamp(cameraPitch, -1.2, 0.45);
-    cameraDistance = THREE.MathUtils.clamp(cameraDistance, 4, 22);
+  function resetManualCameraOffset() {
+    manualCameraOffset.set(0, 0, 0);
   }
 
-  function setCameraMode(mode) {
-    activeCameraMode = mode;
-    switch (mode) {
+  function positionMinerCamera() {
+    if (!miner) return;
+    miner.getWorldPosition(presetTarget);
+    const offset = new THREE.Vector3(0, 8, 16);
+    const camPos = presetTarget.clone().add(offset).add(manualCameraOffset);
+    camera.position.copy(camPos);
+    camera.lookAt(presetTarget.x, presetTarget.y, presetTarget.z);
+  }
+
+  function positionTruckCamera() {
+    if (!truck) return;
+    truck.getWorldPosition(presetTarget);
+    const offset = new THREE.Vector3(16, 10, 6);
+    const camPos = presetTarget.clone().add(offset).add(manualCameraOffset);
+    camera.position.copy(camPos);
+    camera.lookAt(presetTarget.x, presetTarget.y, presetTarget.z);
+  }
+
+  function positionElevatorCamera() {
+    if (!elevatorAnchor) return;
+    elevatorAnchor.getWorldPosition(presetTarget);
+    const offset = new THREE.Vector3(10, 12, 10);
+    const camPos = presetTarget.clone().add(offset).add(manualCameraOffset);
+    camera.position.copy(camPos);
+    camera.lookAt(presetTarget.x, presetTarget.y, presetTarget.z);
+  }
+
+  function positionOverviewCamera() {
+    const offset = new THREE.Vector3(20, 20, 20).add(manualCameraOffset);
+    camera.position.copy(offset);
+    camera.lookAt(0, -5, 0);
+  }
+
+  function setCameraPreset(preset) {
+    currentPreset = preset;
+    resetManualCameraOffset();
+
+    switch (preset) {
       case "miner":
-        cameraTarget = minerGroup;
-        cameraDistance = 8;
-        cameraYaw = Math.PI * 0.4;
-        cameraPitch = -0.2;
+        positionMinerCamera();
         break;
       case "truck":
-        cameraTarget = cartMesh;
-        cameraDistance = 7;
-        cameraYaw = Math.PI * 0.3;
-        cameraPitch = -0.15;
+        positionTruckCamera();
         break;
-      case "deep":
-        cameraTarget = deepCameraAnchor || minerGroup;
-        cameraDistance = 10;
-        cameraYaw = Math.PI * 0.6;
-        cameraPitch = -0.3;
+      case "elevator":
+        positionElevatorCamera();
         break;
       case "overview":
       default:
-        cameraTarget = null;
-        cameraDistance = 18;
-        cameraYaw = Math.PI * 0.25;
-        cameraPitch = -0.25;
+        positionOverviewCamera();
         break;
     }
-    clampCameraValues();
   }
 
-  function updateCamera() {
-    if (!camera) return;
-    clampCameraValues();
-    const lerpFactor = 0.1;
-    let targetPos = cameraTargetVec;
-
-    if (cameraTarget && cameraTarget.getWorldPosition) {
-      cameraTarget.getWorldPosition(targetPos);
-    } else {
-      targetPos.set(0, depthTargetY * 0.25 - 4, 0);
+  function updateCameraForActivePreset() {
+    switch (currentPreset) {
+      case "miner":
+        positionMinerCamera();
+        break;
+      case "truck":
+        positionTruckCamera();
+        break;
+      case "elevator":
+        positionElevatorCamera();
+        break;
+      case "overview":
+      default:
+        positionOverviewCamera();
+        break;
     }
-
-    cameraOffset.set(
-      Math.cos(cameraYaw) * cameraDistance,
-      Math.sin(cameraPitch) * cameraDistance,
-      Math.sin(cameraYaw) * cameraDistance
-    );
-
-    desiredCameraPos.copy(targetPos).add(cameraOffset);
-    camera.position.lerp(desiredCameraPos, lerpFactor);
-    camera.lookAt(targetPos);
   }
 
-  function getTouchDistance(touches) {
-    if (touches.length < 2) return 0;
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    return Math.sqrt(dx * dx + dy * dy);
+  function nudgeCamera(dx, dy) {
+    manualCameraOffset.x += dx;
+    manualCameraOffset.y += dy;
+    updateCameraForActivePreset();
+  }
+
+  function zoomCamera(amount) {
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    manualCameraOffset.addScaledVector(dir, amount);
+    updateCameraForActivePreset();
   }
 
   function handleSceneClick(obj) {
@@ -2532,10 +2513,7 @@
     const depthRatio = Math.min(1, depthVal / maxVisualDepth);
     depthTargetY = -Math.min(depthVal * 0.16, 55);
 
-    if (deepCameraAnchor) {
-      deepCameraAnchor.position.y = depthTargetY - 6;
-    }
-    updateCamera();
+    updateCameraForActivePreset();
 
     minimapCamera.position.y = THREE.MathUtils.lerp(minimapCamera.position.y, 18 + depthRatio * 3, 0.1);
 
@@ -2562,13 +2540,6 @@
       digPulse -= dt * 2.5;
       if (digPulse < 0) digPulse = 0;
     }
-    if (shakeTime > 0) {
-      shakeTime -= dt;
-      const s = (shakeTime / Math.max(shakeStrength, 0.0001)) * 0.2 * shakeStrength;
-      camera.position.x += (Math.sin(performance.now() * 0.04) * s) / 2;
-      camera.position.z += (Math.cos(performance.now() * 0.05) * s) / 2;
-    }
-
     const pr = renderer.getPixelRatio();
     const viewW = renderer.domElement.clientWidth * pr;
     const viewH = renderer.domElement.clientHeight * pr;
@@ -3092,9 +3063,61 @@
 
   cameraButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
-      const mode = btn.getAttribute("data-cam");
-      setCameraMode(mode);
+      const preset = btn.getAttribute("data-preset");
+      setCameraPreset(preset);
     });
+  });
+
+  document.querySelectorAll('#camera-panel button[data-move]').forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const move = btn.getAttribute("data-move");
+      const step = 1.0;
+      switch (move) {
+        case "up":
+          nudgeCamera(0, step);
+          break;
+        case "down":
+          nudgeCamera(0, -step);
+          break;
+        case "left":
+          nudgeCamera(-step, 0);
+          break;
+        case "right":
+          nudgeCamera(step, 0);
+          break;
+        case "zoom-in":
+          zoomCamera(-1.0);
+          break;
+        case "zoom-out":
+          zoomCamera(1.0);
+          break;
+      }
+    });
+  });
+
+  window.addEventListener("keydown", (e) => {
+    const step = 1.0;
+    switch (e.key) {
+      case "ArrowUp":
+        nudgeCamera(0, step);
+        break;
+      case "ArrowDown":
+        nudgeCamera(0, -step);
+        break;
+      case "ArrowLeft":
+        nudgeCamera(-step, 0);
+        break;
+      case "ArrowRight":
+        nudgeCamera(step, 0);
+        break;
+      case "+":
+      case "=":
+        zoomCamera(-1.0);
+        break;
+      case "-":
+        zoomCamera(1.0);
+        break;
+    }
   });
 
   btnRepair.addEventListener("click", () => {
@@ -3177,7 +3200,7 @@
   }
 
   initThree();
-  setCameraMode("overview");
+  setCameraPreset("overview");
   requestAnimationFrame(loop);
 </script>
 </body>
