@@ -233,7 +233,7 @@
       height: 260px;
       display: block;
       border-radius: 14px;
-      background: linear-gradient(180deg, #0b1220, #0a1020 60%, #060914);
+      background: transparent;
       filter: saturate(1.05);
     }
 
@@ -1821,20 +1821,24 @@
     metalness: 0.05,
   });
 
-  function createGroundTexture() {
-    const size = 64;
+  function createStrataTexture() {
+    const size = 256;
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = size;
     const ctx = canvas.getContext("2d");
-    for (let y = 0; y < 8; y++) {
-      for (let x = 0; x < 8; x++) {
-        ctx.fillStyle = (x + y) % 2 === 0 ? "#3a2a1d" : "#2f2218";
-        ctx.fillRect((x * size) / 8, (y * size) / 8, size / 8, size / 8);
-      }
+
+    let y = 0;
+    while (y < size) {
+      const h = 10 + Math.random() * 25;
+      const light = 15 + Math.random() * 25;
+      ctx.fillStyle = `hsl(28, 25%, ${light}%)`;
+      ctx.fillRect(0, y, size, h);
+      y += h;
     }
+
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(8, 8);
+    tex.repeat.set(1, 8);
     tex.anisotropy = 4;
     return tex;
   }
@@ -2029,9 +2033,9 @@
     scene.background = new THREE.Color(0x0f172a);
     scene.fog = new THREE.Fog(0x0b1220, 12, 90);
 
-    camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 300);
-    camera.position.set(7, 7, 9);
-    camera.lookAt(0, -5, 0);
+    camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 300);
+    camera.position.set(6, 4, 8);
+    camera.lookAt(0, -10, 0);
 
     minimapCamera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 80);
     minimapCamera.position.set(0, 20, 0);
@@ -2046,30 +2050,31 @@
     point.position.set(-1, 1.2, 1);
     scene.add(point);
 
-    const groundGeo = new THREE.PlaneGeometry(30, 30);
+    const groundGeo = new THREE.PlaneGeometry(14, 14);
     const groundMat = new THREE.MeshStandardMaterial({
-      color: 0x5b4631,
-      roughness: 0.85,
-      metalness: 0.08,
-      map: createGroundTexture(),
+      color: 0x1f2933,
+      roughness: 0.95,
+      metalness: 0.05,
     });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = 0;
+    ground.position.set(3, -0.1, -6);
     scene.add(ground);
 
     createRailsAndCart(scene);
 
     shaftGroup = new THREE.Group();
+    const strataTex = createStrataTexture();
     const wallMat = new THREE.MeshStandardMaterial({
-      color: 0x3a2b22,
-      roughness: 0.75,
-      metalness: 0.12,
+      map: strataTex,
+      roughness: 0.85,
+      metalness: 0.1,
     });
     const wallMatDeep = new THREE.MeshStandardMaterial({
-      color: 0x2c1f17,
-      roughness: 0.8,
-      metalness: 0.12,
+      map: strataTex,
+      color: 0x1f2933,
+      roughness: 0.9,
+      metalness: 0.08,
     });
     const wallGeoX = new THREE.BoxGeometry(7, 130, 0.8);
     const wallGeoZ = new THREE.BoxGeometry(0.8, 130, 7);
@@ -2304,10 +2309,10 @@
 
     currentYaw = THREE.MathUtils.lerp(currentYaw, targetYaw, 0.08);
     currentPitch = THREE.MathUtils.lerp(currentPitch, targetPitch, 0.08);
-    const radius = 10;
+    const radius = 9;
     const camX = Math.cos(currentYaw) * radius;
     const camZ = Math.sin(currentYaw) * radius;
-    const camY = 7 + depthTargetY * 0.08 + Math.sin(currentPitch) * 2;
+    const camY = 4 + depthTargetY * 0.08 + Math.sin(currentPitch) * 2;
     camera.position.set(camX, camY, camZ);
     const lookTargetY = depthTargetY * 0.1;
     camera.lookAt(0, lookTargetY, 0);
