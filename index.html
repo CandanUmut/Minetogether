@@ -2102,25 +2102,40 @@
     }
   }
 
+  function resizeRendererToCanvas() {
+    if (!renderer) return;
+    const canvas = renderer.domElement;
+
+    // Canvas CSS genişliği/yüksekliği
+    const width = canvas.clientWidth || 800;
+    const height = canvas.clientHeight || 450;
+
+    renderer.setSize(width, height, false);
+    if (camera) {
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+  }
+
   function initThree() {
     const canvas = document.getElementById("mine-canvas");
     canvas.height = 360;
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-    renderer.setSize(w, h, false);
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
     renderer.autoClear = false;
 
+    resizeRendererToCanvas();
+
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0f172a);
     scene.fog = new THREE.Fog(0x0b1220, 12, 90);
 
-    camera = new THREE.PerspectiveCamera(72, w / h, 0.1, 500);
+    const initialWidth = canvas.clientWidth || 800;
+    const initialHeight = canvas.clientHeight || 450;
+    camera = new THREE.PerspectiveCamera(72, initialWidth / initialHeight, 0.1, 500);
     camera.fov = 72;
     camera.near = 0.1;
     camera.far = 500;
@@ -2268,13 +2283,7 @@
     setCameraPreset("overview");
     updateCameraForActivePreset();
 
-    window.addEventListener("resize", () => {
-      const w2 = canvas.clientWidth;
-      const h2 = canvas.clientHeight;
-      camera.aspect = w2 / h2;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w2, h2, false);
-    });
+    window.addEventListener("resize", resizeRendererToCanvas);
 
     canvas.addEventListener("click", onCanvasClick);
   }
@@ -2864,6 +2873,9 @@
     setupSection.style.display = "none";
     gameSection.style.display = "block";
 
+    // Oyun bölümü görünür olduktan sonra canvas boyutunu düzelt
+    resizeRendererToCanvas();
+
     // Reset to overview when the game actually starts
     setCameraPreset("overview");
     updateCameraForActivePreset();
@@ -3245,12 +3257,9 @@
       if (state.autoRate > 0 && !collapseActive) {
         const gains = applyMining(state.autoRate * dt * miningBoostMultiplier(), true);
         minerDigTimer = Math.max(minerDigTimer, 0.18);
-        autoSoundTimer -= dt;
-        if (autoSoundTimer <= 0) {
-          soundManager.playDig();
-          autoSoundTimer = Math.max(0.6, 1.5 - state.autoRate * 0.05);
-        }
-        if (gains.gemGain > 0 && Math.random() < 0.15) soundManager.playGem();
+
+        // Auto-dig sırasında ses çalmayalım, sadece görsel animasyon olsun
+        // if (gains.gemGain > 0 && Math.random() < 0.15) soundManager.playGem();
       }
       if (state.currentEvent.type === "collapse" && Date.now() > state.currentEvent.endsAt) {
         resolveCollapse(false);
