@@ -1877,11 +1877,8 @@
   let shaftGroup, drillMesh, minerGroup, minerArmL, minerArmR, pickaxeMesh;
   let miner, truck, elevatorAnchor;
 
-  // Camera system helpers
-  let currentPreset = "overview"; // "overview" | "miner" | "truck" | "elevator"
-  const cameraTarget = new THREE.Vector3(); // smoothed look-at target
-  const desiredCameraPos = new THREE.Vector3(); // smoothed camera position
-  let cameraInitialized = false;
+  // Camera system helpers (simplified follow camera)
+  let currentPreset = "overview"; // "overview" | "miner" | "truck" | "elevator";
   let oreDecorations = [];
   let dustParticles = [];
   let minimapMarker;
@@ -1899,8 +1896,6 @@
   let autoDigTimer = 0;
   let autoSoundTimer = 0;
   let depthTargetY = 0;
-  const manualCameraOffset = new THREE.Vector3();
-  const presetTarget = new THREE.Vector3();
   let minerBoostTimer = 0;
   let truckBoostTimer = 0;
   const tempVec = new THREE.Vector3();
@@ -2271,7 +2266,6 @@
 
     // Initialize camera to a sensible default overview framing.
     setCameraPreset("overview");
-    cameraInitialized = true;
     updateCameraForActivePreset();
 
     window.addEventListener("resize", () => {
@@ -2432,87 +2426,85 @@
     }
   }
 
-  function resetManualCameraOffset() {
-    manualCameraOffset.set(0, 0, 0);
-  }
+  function focusOnObject(obj, opts = {}) {
+    if (!camera || !obj) return;
 
-  function setCameraLook(camPos, target, minDistance = 6, maxDistance = 120) {
-    // Clamp distance so we never go INSIDE the object or infinitely far away
-    const toCam = camPos.clone().sub(target);
-    let dist = toCam.length();
-    if (dist < 0.001) {
-      // Avoid NaN if target and camera coincide
-      toCam.set(0, 10, 15);
-      dist = toCam.length();
-    }
-    const clamped = THREE.MathUtils.clamp(dist, minDistance, maxDistance);
-    if (dist !== clamped) {
-      toCam.setLength(clamped);
-    }
+    const dist = opts.distance ?? 7;
+    const height = opts.height ?? 4;
+    const angle = opts.angle ?? Math.PI / 4; // horizontal angle around target
 
-    desiredCameraPos.copy(target).add(toCam);
-    cameraTarget.copy(target);
+    const target = new THREE.Vector3();
+    obj.getWorldPosition(target);
+
+    // Calculate offset in a circle around the target
+    const offset = new THREE.Vector3(
+      Math.cos(angle) * dist,
+      height,
+      Math.sin(angle) * dist
+    );
+
+    const camPos = target.clone().add(offset);
+
+    camera.position.copy(camPos);
+    camera.lookAt(target);
   }
 
   function positionMinerCamera() {
-    if (!miner) return;
-    miner.getWorldPosition(presetTarget);
-    // Slightly above and behind over the miner's shoulder
-    const baseOffset = new THREE.Vector3(6, 8, 14);
-    const camPos = presetTarget.clone().add(baseOffset).add(manualCameraOffset);
-    setCameraLook(camPos, presetTarget, 8, 80);
+    // closer, shoulder-ish view
+    focusOnObject(minerGroup || miner, {
+      distance: 5,
+      height: 3,
+      angle: Math.PI / 6
+    });
   }
 
   function positionTruckCamera() {
-    if (!truck) return;
-    truck.getWorldPosition(presetTarget);
-    // Side view showing truck on rails plus shaft mouth in the background
-    const baseOffset = new THREE.Vector3(10, 6, 6);
-    const camPos = presetTarget.clone().add(baseOffset).add(manualCameraOffset);
-    setCameraLook(camPos, presetTarget, 8, 80);
+    // side view of the truck on rails
+    focusOnObject(cartMesh || truck, {
+      distance: 6,
+      height: 3,
+      angle: -Math.PI / 3
+    });
   }
 
   function positionElevatorCamera() {
-    if (!elevatorAnchor) return;
-    elevatorAnchor.getWorldPosition(presetTarget);
-    // Angle that looks slightly down the shaft from the elevator side
-    const baseOffset = new THREE.Vector3(7, 10, 12);
-    const camPos = presetTarget.clone().add(baseOffset).add(manualCameraOffset);
-    setCameraLook(camPos, presetTarget, 8, 80);
+    // look slightly down into the shaft at the elevator
+    focusOnObject(elevatorAnchor, {
+      distance: 7,
+      height: 4,
+      angle: Math.PI / 3
+    });
   }
 
   function positionOverviewCamera() {
-    // Overview of all "main actors": miner, truck, elevator, drill
-    const focusPoints = [];
-    [miner, truck, elevatorAnchor, drillMesh].forEach((obj) => {
-      if (obj) {
-        const v = new THREE.Vector3();
-        obj.getWorldPosition(v);
-        focusPoints.push(v);
-      }
+    // Frame miner + truck + elevator + drill together, but much closer than before
+    const points = [];
+    [minerGroup, cartMesh, elevatorAnchor, drillMesh].forEach((obj) => {
+      if (!obj) return;
+      const v = new THREE.Vector3();
+      obj.getWorldPosition(v);
+      points.push(v);
     });
 
-    // Fallback center if nothing else is available
-    let center = new THREE.Vector3(0, -4, 0);
-    let radius = 12;
+    let center = new THREE.Vector3(0, -2, 1);
+    let radius = 8;
 
-    if (focusPoints.length) {
-      const box = new THREE.Box3().setFromPoints(focusPoints);
+    if (points.length) {
+      const box = new THREE.Box3().setFromPoints(points);
       center = box.getCenter(new THREE.Vector3());
-      radius = box.getSize(new THREE.Vector3()).length() * 0.6;
-      radius = THREE.MathUtils.clamp(radius, 10, 40);
+      radius = box.getSize(new THREE.Vector3()).length() * 0.4;
+      radius = THREE.MathUtils.clamp(radius, 6, 18);
     }
 
-    // Place camera diagonally above the scene so all actors are visible
-    const baseOffset = new THREE.Vector3(radius * 1.2, radius * 1.3, radius * 1.2);
-    const camPos = center.clone().add(baseOffset).add(manualCameraOffset);
+    const offset = new THREE.Vector3(radius, radius * 0.9, radius);
+    const camPos = center.clone().add(offset);
 
-    setCameraLook(camPos, center, 12, 140);
+    camera.position.copy(camPos);
+    camera.lookAt(center);
   }
 
   function setCameraPreset(preset) {
     currentPreset = preset || "overview";
-    resetManualCameraOffset();
 
     switch (currentPreset) {
       case "miner":
@@ -2532,9 +2524,7 @@
   }
 
   function updateCameraForActivePreset() {
-    if (!cameraInitialized || !camera) return;
-
-    // First, recompute desiredCameraPos / cameraTarget from the active preset
+    // Called every frame from updateThree to keep the camera locked onto the current preset target
     switch (currentPreset) {
       case "miner":
         positionMinerCamera();
@@ -2550,37 +2540,20 @@
         positionOverviewCamera();
         break;
     }
-
-    // Then, gently move the real camera towards that desired position & target
-    const lerpFactor = 0.12; // controls smoothness
-    camera.position.lerp(desiredCameraPos, lerpFactor);
-    camera.lookAt(cameraTarget);
   }
 
-  function clampManualOffset() {
-    // Prevent the camera from drifting too far away from the action
-    const maxOffset = 30;
-    if (manualCameraOffset.length() > maxOffset) {
-      manualCameraOffset.setLength(maxOffset);
-    }
-  }
-
+  // Manual nudges: just small convenience zoom / pan by tweaking camera position directly.
   function nudgeCamera(dx, dy) {
-    // Move in a screen-space style: x -> horizontal strafe, y -> vertical
-    manualCameraOffset.x += dx;
-    manualCameraOffset.y += dy;
-    clampManualOffset();
-    updateCameraForActivePreset();
+    if (!camera) return;
+    camera.position.x += dx;
+    camera.position.y += dy;
   }
 
   function zoomCamera(amount) {
-    // Move closer/further along the current view direction, but clamp length
+    if (!camera) return;
     const dir = new THREE.Vector3();
     camera.getWorldDirection(dir);
-
-    manualCameraOffset.addScaledVector(dir, amount);
-    clampManualOffset();
-    updateCameraForActivePreset();
+    camera.position.addScaledVector(dir, amount);
   }
 
   function handleSceneClick(obj) {
