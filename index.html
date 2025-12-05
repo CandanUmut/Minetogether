@@ -896,13 +896,9 @@
               <button data-preset="truck">Truck</button>
               <button data-preset="elevator">Elevator</button>
             </div>
-            <div class="camera-move">
-              <button data-move="up">↑</button>
-              <button data-move="left">←</button>
-              <button data-move="right">→</button>
-              <button data-move="down">↓</button>
-              <button data-move="zoom-in">+</button>
-              <button data-move="zoom-out">−</button>
+            <div class="camera-move" style="gap:10px;flex-wrap:wrap;">
+              <button id="btn-toggle-lock" class="secondary">Lock Camera</button>
+              <div class="small-note">1-4 switch views · L toggles lock · Scroll/drag to orbit</div>
             </div>
           </div>
 
@@ -1108,6 +1104,7 @@
 
 <script type="module">
   import * as THREE from "https://unpkg.com/three@0.164.1/build/three.module.js";
+  import { OrbitControls } from "https://unpkg.com/three@0.164.1/examples/jsm/controls/OrbitControls.js";
   import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
   // ===================== Supabase =====================
@@ -1299,6 +1296,7 @@
   const btnViewRoom = document.getElementById("btn-view-room");
   const btnRefreshLeaderboard = document.getElementById("btn-refresh-leaderboard");
   const cameraButtons = document.querySelectorAll('#camera-panel button[data-preset]');
+  const btnToggleLock = document.getElementById("btn-toggle-lock");
 
   const translations = {
     en: {
@@ -1392,9 +1390,29 @@
     logEl.scrollTop = logEl.scrollHeight;
   }
 
-  const soundManager = (() => {
-    let unlocked = false;
-    const createSound = (src, loop = false, volume = 0.8) => {
+  class SoundManager {
+    constructor() {
+      this.unlocked = false;
+      this.masterVolume = 0.4;
+      this.cooldowns = {
+        dig: 0,
+        gem: 0,
+        levelUp: 0,
+        collapse: 0,
+        upgrade: 0,
+        money: 0,
+      };
+      this.sounds = {
+        dig: this.createSound("sounds/dig.mp3", false, 0.75),
+        upgrade: this.createSound("sounds/upgrade.wav", false, 0.7),
+        cash: this.createSound("sounds/cash.mp3", false, 0.6),
+        gem: this.createSound("sounds/gem.wav", false, 0.55),
+        collapse: this.createSound("sounds/upgrade.wav", false, 0.8),
+        music: this.createSound("sounds/bg-music.mp3", true, 0.25),
+      };
+    }
+
+    createSound(src, loop = false, volume = 0.8) {
       try {
         const a = new Audio(src);
         a.loop = loop;
@@ -1404,76 +1422,88 @@
         console.warn("Sound could not load", src, e);
         return null;
       }
-    };
-
-    const sounds = {
-      dig: createSound("sounds/dig.mp3", false, 0.75),
-      upgrade: createSound("sounds/upgrade.wav", false, 0.8),
-      cash: createSound("sounds/cash.mp3", false, 0.7),
-      gem: createSound("sounds/gem.wav", false, 0.6),
-      music: createSound("sounds/bg-music.mp3", true, 0.3),
-    };
-
-    function ensureUnlocked() {
-      if (unlocked) return;
-      unlocked = true;
     }
 
-    function playSound(key) {
+    ensureUnlocked() {
+      if (this.unlocked) return;
+      this.unlocked = true;
+    }
+
+    update(dt) {
+      Object.keys(this.cooldowns).forEach((k) => {
+        this.cooldowns[k] = Math.max(0, this.cooldowns[k] - dt);
+      });
+    }
+
+    play(name, minInterval = 0.3, volume = 1.0) {
       if (!state.soundEnabled || !userInteracted) return;
-      const s = sounds[key];
+      const s = this.sounds[name];
       if (!s) return;
-      ensureUnlocked();
+      if (this.cooldowns[name] > 0) return;
+      this.ensureUnlocked();
+      this.cooldowns[name] = minInterval;
       try {
         s.currentTime = 0;
+        s.volume = this.masterVolume * volume;
         s.play();
       } catch (e) {
         /* ignore */
       }
     }
 
-    function updateMusicState() {
-      const m = sounds.music;
+    playDig() {
+      this.play("dig", 0.08, 0.9);
+    }
+
+    playUpgrade() {
+      this.play("upgrade", 0.5, 0.9);
+    }
+
+    playMoney() {
+      this.play("cash", 0.3, 0.8);
+    }
+
+    playGem() {
+      this.play("gem", 0.2, 0.7);
+    }
+
+    playLevelUp() {
+      this.play("upgrade", 1.0, 1.0);
+    }
+
+    playCollapse() {
+      this.play("collapse", 0.6, 1.0);
+    }
+
+    updateMusicState() {
+      const m = this.sounds.music;
       if (!m) return;
       if (state.musicEnabled && state.soundEnabled && userInteracted) {
-        ensureUnlocked();
-        m.volume = 0.25;
+        this.ensureUnlocked();
+        m.volume = this.masterVolume * 0.6;
         m.play().catch(() => {});
       } else {
         m.pause();
       }
     }
 
-    return {
-      playDig() {
-        playSound("dig");
-      },
-      playUpgrade() {
-        playSound("upgrade");
-      },
-      playMoney() {
-        playSound("cash");
-      },
-      playGem() {
-        playSound("gem");
-      },
-      toggleMute() {
-        state.soundEnabled = !state.soundEnabled;
-        if (!state.soundEnabled && sounds.music) sounds.music.pause();
-        updateMusicState();
-        saveLocalState();
-        updateStatsUI();
-      },
-      toggleMusic() {
-        state.musicEnabled = !state.musicEnabled;
-        updateMusicState();
-        saveLocalState();
-        updateStatsUI();
-      },
-      updateMusicState,
-      ensureUnlocked,
-    };
-  })();
+    toggleMute() {
+      state.soundEnabled = !state.soundEnabled;
+      if (!state.soundEnabled && this.sounds.music) this.sounds.music.pause();
+      this.updateMusicState();
+      saveLocalState();
+      updateStatsUI();
+    }
+
+    toggleMusic() {
+      state.musicEnabled = !state.musicEnabled;
+      this.updateMusicState();
+      saveLocalState();
+      updateStatsUI();
+    }
+  }
+
+  const soundManager = new SoundManager();
 
   // ===================== Local Storage =====================
   function loadLocalState() {
@@ -1873,12 +1903,18 @@
   }
 
   // ===================== Three.js =====================
-  let scene, camera, minimapCamera, renderer;
+  let scene, camera, minimapCamera, renderer, cameraRig, controls;
   let shaftGroup, drillMesh, minerGroup, minerArmL, minerArmR, pickaxeMesh;
   let miner, truck, elevatorAnchor;
+  let minerAnchor, truckAnchor, overviewAnchor;
 
-  // Camera system helpers (simplified follow camera)
-  let currentPreset = "overview"; // "overview" | "miner" | "truck" | "elevator";
+  const cameraState = {
+    mode: "overview",
+    target: new THREE.Vector3(),
+    desiredPosition: new THREE.Vector3(),
+    currentTarget: new THREE.Vector3(),
+    lockToAction: true,
+  };
   let oreDecorations = [];
   let dustParticles = [];
   let minimapMarker;
@@ -2126,31 +2162,48 @@
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
     renderer.autoClear = false;
+    renderer.setClearColor(0x020617, 1);
 
     resizeRendererToCanvas();
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0f172a);
-    scene.fog = new THREE.Fog(0x0b1220, 12, 90);
+    scene.background = new THREE.Color(0x020617);
+    scene.fog = new THREE.FogExp2(0x050816, 0.008);
 
     const initialWidth = canvas.clientWidth || 800;
     const initialHeight = canvas.clientHeight || 450;
-    camera = new THREE.PerspectiveCamera(72, initialWidth / initialHeight, 0.1, 500);
+    camera = new THREE.PerspectiveCamera(72, initialWidth / initialHeight, 0.1, 1000);
     camera.fov = 72;
     camera.near = 0.1;
-    camera.far = 500;
+    camera.far = 1000;
     camera.updateProjectionMatrix();
+
+    cameraRig = new THREE.Object3D();
+    cameraRig.name = "cameraRig";
+    cameraRig.add(camera);
+    scene.add(cameraRig);
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 5;
+    controls.maxDistance = 120;
+    controls.maxPolarAngle = Math.PI * 0.49;
+    controls.enablePan = false;
 
     minimapCamera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 80);
     minimapCamera.position.set(0, 20, 0);
     minimapCamera.lookAt(0, 0, 0);
 
-    const hemi = new THREE.HemisphereLight(0xc3dafb, 0x3a2415, 1.5);
+    const hemi = new THREE.HemisphereLight(0xc3dafb, 0x21130d, 1.35);
     scene.add(hemi);
-    const dirLight = new THREE.DirectionalLight(0xfff7d6, 1.6);
-    dirLight.position.set(8, 14, 8);
+    const ambient = new THREE.AmbientLight(0x1f2937, 0.35);
+    scene.add(ambient);
+    const dirLight = new THREE.DirectionalLight(0xfff7d6, 2);
+    dirLight.position.set(10, 16, 10);
+    dirLight.castShadow = false;
     scene.add(dirLight);
-    const point = new THREE.PointLight(0xfacc15, 1.6, 22);
+    const point = new THREE.PointLight(0xfacc15, 1.4, 24);
     point.position.set(-1, 1.2, 1);
     scene.add(point);
 
@@ -2279,7 +2332,16 @@
     elevatorAnchor.add(elevatorGroup);
     shaftGroup.add(elevatorAnchor);
 
+    minerAnchor = new THREE.Object3D();
+    minerAnchor.name = "minerAnchor";
+    truckAnchor = new THREE.Object3D();
+    truckAnchor.name = "truckAnchor";
+    overviewAnchor = new THREE.Object3D();
+    overviewAnchor.name = "overviewAnchor";
+    scene.add(minerAnchor, truckAnchor, overviewAnchor);
+
     // Initialize camera to a sensible default overview framing.
+    syncCameraAnchors();
     setCameraPreset("overview");
     updateCameraForActivePreset();
 
@@ -2435,134 +2497,149 @@
     }
   }
 
-  function focusOnObject(obj, opts = {}) {
-    if (!camera || !obj) return;
+  function getCameraPositionForRadius(target, radius, heightMultiplier = 1.0) {
+    const angle = Math.PI * 0.25;
+    const distance = radius * 2.2;
+    const x = target.x + distance * Math.cos(angle);
+    const z = target.z + distance * Math.sin(angle);
+    const y = Math.max(4, target.y + radius * heightMultiplier);
 
-    const dist = opts.distance ?? 7;
-    const height = opts.height ?? 4;
-    const angle = opts.angle ?? Math.PI / 4; // horizontal angle around target
-
-    const target = new THREE.Vector3();
-    obj.getWorldPosition(target);
-
-    // Calculate offset in a circle around the target
-    const offset = new THREE.Vector3(
-      Math.cos(angle) * dist,
-      height,
-      Math.sin(angle) * dist
-    );
-
-    const camPos = target.clone().add(offset);
-
-    camera.position.copy(camPos);
-    camera.lookAt(target);
+    return new THREE.Vector3(x, y, z);
   }
 
-  function positionMinerCamera() {
-    // closer, shoulder-ish view
-    focusOnObject(minerGroup || miner, {
-      distance: 5,
-      height: 3,
-      angle: Math.PI / 6
-    });
+  function syncCameraAnchors() {
+    if (!minerAnchor) return;
+    if (minerGroup) minerGroup.getWorldPosition(minerAnchor.position);
+    if (cartMesh) cartMesh.getWorldPosition(truckAnchor.position);
   }
 
-  function positionTruckCamera() {
-    // side view of the truck on rails
-    focusOnObject(cartMesh || truck, {
-      distance: 6,
-      height: 3,
-      angle: -Math.PI / 3
-    });
-  }
+  function refreshOverviewAnchor() {
+    if (!overviewAnchor) return;
+    const box = new THREE.Box3();
+    let initialized = false;
 
-  function positionElevatorCamera() {
-    // look slightly down into the shaft at the elevator
-    focusOnObject(elevatorAnchor, {
-      distance: 7,
-      height: 4,
-      angle: Math.PI / 3
-    });
-  }
-
-  function positionOverviewCamera() {
-    // Frame miner + truck + elevator + drill together, but much closer than before
-    const points = [];
-    [minerGroup, cartMesh, elevatorAnchor, drillMesh].forEach((obj) => {
-      if (!obj) return;
-      const v = new THREE.Vector3();
-      obj.getWorldPosition(v);
-      points.push(v);
-    });
-
-    let center = new THREE.Vector3(0, -2, 1);
-    let radius = 8;
-
-    if (points.length) {
-      const box = new THREE.Box3().setFromPoints(points);
-      center = box.getCenter(new THREE.Vector3());
-      radius = box.getSize(new THREE.Vector3()).length() * 0.4;
-      radius = THREE.MathUtils.clamp(radius, 6, 18);
+    if (minerGroup) {
+      box.setFromObject(minerGroup);
+      initialized = true;
+    } else if (minerAnchor) {
+      box.setFromCenterAndSize(minerAnchor.position, new THREE.Vector3(0.1, 0.1, 0.1));
+      initialized = true;
     }
 
-    const offset = new THREE.Vector3(radius, radius * 0.9, radius);
-    const camPos = center.clone().add(offset);
+    if (cartMesh) {
+      if (!initialized) {
+        box.setFromObject(cartMesh);
+        initialized = true;
+      } else {
+        box.expandByObject(cartMesh);
+      }
+    }
 
-    camera.position.copy(camPos);
-    camera.lookAt(center);
+    if (elevatorAnchor) {
+      if (!initialized) {
+        box.setFromObject(elevatorAnchor);
+        initialized = true;
+      } else {
+        box.expandByObject(elevatorAnchor);
+      }
+    }
+
+    if (!initialized) {
+      box.setFromCenterAndSize(new THREE.Vector3(0, -2, 0), new THREE.Vector3(8, 8, 8));
+    }
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const radius = Math.max(size.x, size.z, size.y) * 0.9 || 10;
+
+    overviewAnchor.position.copy(center);
+    return radius;
+  }
+
+  function setOverviewCamera() {
+    cameraState.mode = "overview";
+    const radius = refreshOverviewAnchor() || 10;
+    cameraState.target.copy(overviewAnchor.position);
+    cameraState.desiredPosition.copy(
+      getCameraPositionForRadius(overviewAnchor.position, radius, 1.6)
+    );
+  }
+
+  function setMinerCamera() {
+    cameraState.mode = "miner";
+    cameraState.target.copy(minerAnchor.position);
+    cameraState.desiredPosition.copy(
+      minerAnchor.position.clone().add(new THREE.Vector3(8, 6, 10))
+    );
+  }
+
+  function setTruckCamera() {
+    cameraState.mode = "truck";
+    cameraState.target.copy(truckAnchor.position);
+    cameraState.desiredPosition.copy(
+      truckAnchor.position.clone().add(new THREE.Vector3(-10, 7, 12))
+    );
+  }
+
+  function setElevatorCamera() {
+    cameraState.mode = "elevator";
+    cameraState.target.copy(elevatorAnchor.position);
+    cameraState.desiredPosition.copy(
+      elevatorAnchor.position.clone().add(new THREE.Vector3(6, 12, 6))
+    );
   }
 
   function setCameraPreset(preset) {
-    currentPreset = preset || "overview";
-
-    switch (currentPreset) {
+    const mode = preset || "overview";
+    switch (mode) {
       case "miner":
-        positionMinerCamera();
+        setMinerCamera();
         break;
       case "truck":
-        positionTruckCamera();
+        setTruckCamera();
         break;
       case "elevator":
-        positionElevatorCamera();
+        setElevatorCamera();
         break;
       case "overview":
       default:
-        positionOverviewCamera();
+        setOverviewCamera();
         break;
+    }
+    cameraState.currentTarget.copy(cameraState.target);
+    if (cameraRig) {
+      cameraRig.position.copy(cameraState.desiredPosition);
     }
   }
 
-  function updateCameraForActivePreset() {
-    // Called every frame from updateThree to keep the camera locked onto the current preset target
-    switch (currentPreset) {
-      case "miner":
-        positionMinerCamera();
-        break;
-      case "truck":
-        positionTruckCamera();
-        break;
-      case "elevator":
-        positionElevatorCamera();
-        break;
-      case "overview":
-      default:
-        positionOverviewCamera();
-        break;
+  function updateCameraForActivePreset(dt) {
+    if (!cameraRig || !camera) return;
+
+    if (cameraState.lockToAction) {
+      if (cameraState.mode === "miner") {
+        cameraState.target.copy(minerAnchor.position);
+      } else if (cameraState.mode === "truck") {
+        cameraState.target.copy(truckAnchor.position);
+      } else if (cameraState.mode === "elevator") {
+        cameraState.target.copy(elevatorAnchor.position);
+      } else if (cameraState.mode === "overview") {
+        const radius = refreshOverviewAnchor() || 12;
+        cameraState.desiredPosition.copy(
+          getCameraPositionForRadius(overviewAnchor.position, radius, 1.6)
+        );
+      }
     }
-  }
 
-  // Manual nudges: just small convenience zoom / pan by tweaking camera position directly.
-  function nudgeCamera(dx, dy) {
-    if (!camera) return;
-    camera.position.x += dx;
-    camera.position.y += dy;
-  }
+    const lerpFactor = 0.08;
+    cameraRig.position.lerp(cameraState.desiredPosition, lerpFactor);
+    cameraState.currentTarget.lerp(cameraState.target, lerpFactor);
 
-  function zoomCamera(amount) {
-    if (!camera) return;
-    const dir = new THREE.Vector3();
-    camera.getWorldDirection(dir);
-    camera.position.addScaledVector(dir, amount);
+    camera.lookAt(cameraState.currentTarget);
+    if (controls) {
+      if (cameraState.lockToAction) {
+        controls.target.copy(cameraState.currentTarget);
+      }
+      controls.update();
+    }
   }
 
   function handleSceneClick(obj) {
@@ -2636,7 +2713,8 @@
       if (digPulse < 0) digPulse = 0;
     }
 
-    updateCameraForActivePreset();
+    syncCameraAnchors();
+    updateCameraForActivePreset(dt);
     const pr = renderer.getPixelRatio();
     const viewW = renderer.domElement.clientWidth * pr;
     const viewH = renderer.domElement.clientHeight * pr;
@@ -3173,55 +3251,47 @@
     });
   });
 
-  document.querySelectorAll('#camera-panel button[data-move]').forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const move = btn.getAttribute("data-move");
-      const step = 2.0; // pan step
-      const zoomStep = 4.0; // zoom step
-      switch (move) {
-        case "up":
-          nudgeCamera(0, step);
-          break;
-        case "down":
-          nudgeCamera(0, -step);
-          break;
-        case "left":
-          nudgeCamera(-step, 0);
-          break;
-        case "right":
-          nudgeCamera(step, 0);
-          break;
-        case "zoom-in":
-          zoomCamera(-zoomStep);
-          break;
-        case "zoom-out":
-          zoomCamera(zoomStep);
-          break;
+  function updateLockButtonUI() {
+    if (!btnToggleLock) return;
+    btnToggleLock.textContent = cameraState.lockToAction ? "Unlock Camera" : "Lock Camera";
+    btnToggleLock.classList.toggle("active", cameraState.lockToAction);
+  }
+
+  if (btnToggleLock) {
+    btnToggleLock.addEventListener("click", () => {
+      cameraState.lockToAction = !cameraState.lockToAction;
+      if (cameraState.lockToAction) {
+        updateCameraForActivePreset();
       }
+      updateLockButtonUI();
+      log(cameraState.lockToAction ? "Camera locked to action" : "Camera unlocked (free orbit)");
     });
-  });
+    updateLockButtonUI();
+  }
 
   window.addEventListener("keydown", (e) => {
-    const step = 1.5;
     switch (e.key) {
-      case "ArrowUp":
-        nudgeCamera(0, step);
+      case "1":
+        setCameraPreset("overview");
+        updateLockButtonUI();
         break;
-      case "ArrowDown":
-        nudgeCamera(0, -step);
+      case "2":
+        setCameraPreset("miner");
+        updateLockButtonUI();
         break;
-      case "ArrowLeft":
-        nudgeCamera(-step, 0);
+      case "3":
+        setCameraPreset("truck");
+        updateLockButtonUI();
         break;
-      case "ArrowRight":
-        nudgeCamera(step, 0);
+      case "4":
+        setCameraPreset("elevator");
+        updateLockButtonUI();
         break;
-      case "+":
-      case "=":
-        zoomCamera(-1.5);
-        break;
-      case "-":
-        zoomCamera(1.5);
+      case "l":
+      case "L":
+        cameraState.lockToAction = !cameraState.lockToAction;
+        updateLockButtonUI();
+        log(cameraState.lockToAction ? "Camera locked to action" : "Camera unlocked (free orbit)");
         break;
     }
   });
@@ -3243,6 +3313,7 @@
     const dt = (now - lastFrameTime) / 1000;
     lastFrameTime = now;
 
+    soundManager.update(dt);
     updateBoostTimers(dt);
 
     if (sessionStarted) {
