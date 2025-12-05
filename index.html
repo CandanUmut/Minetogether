@@ -2120,8 +2120,8 @@
     scene.background = new THREE.Color(0x0f172a);
     scene.fog = new THREE.Fog(0x0b1220, 12, 90);
 
-    camera = new THREE.PerspectiveCamera(65, w / h, 0.1, 500);
-    camera.fov = 65;
+    camera = new THREE.PerspectiveCamera(72, w / h, 0.1, 500);
+    camera.fov = 72;
     camera.near = 0.1;
     camera.far = 500;
     camera.updateProjectionMatrix();
@@ -2384,37 +2384,59 @@
     manualCameraOffset.set(0, 0, 0);
   }
 
+  function setCameraLook(camPos, target, minDistance = 6, maxDistance = 80) {
+    const toCam = camPos.clone().sub(target);
+    const dist = toCam.length();
+    const clamped = THREE.MathUtils.clamp(dist, minDistance, maxDistance);
+    if (dist !== clamped) {
+      toCam.setLength(clamped);
+      camPos.copy(target).add(toCam);
+    }
+    camera.position.copy(camPos);
+    camera.lookAt(target);
+  }
+
   function positionMinerCamera() {
     if (!miner) return;
     miner.getWorldPosition(presetTarget);
-    const offset = new THREE.Vector3(0, 8, 16);
+    const offset = new THREE.Vector3(5, 7, 12);
     const camPos = presetTarget.clone().add(offset).add(manualCameraOffset);
-    camera.position.copy(camPos);
-    camera.lookAt(presetTarget.x, presetTarget.y, presetTarget.z);
+    setCameraLook(camPos, presetTarget);
   }
 
   function positionTruckCamera() {
     if (!truck) return;
     truck.getWorldPosition(presetTarget);
-    const offset = new THREE.Vector3(16, 10, 6);
+    const offset = new THREE.Vector3(9, 6, 10);
     const camPos = presetTarget.clone().add(offset).add(manualCameraOffset);
-    camera.position.copy(camPos);
-    camera.lookAt(presetTarget.x, presetTarget.y, presetTarget.z);
+    setCameraLook(camPos, presetTarget);
   }
 
   function positionElevatorCamera() {
     if (!elevatorAnchor) return;
     elevatorAnchor.getWorldPosition(presetTarget);
-    const offset = new THREE.Vector3(10, 12, 10);
+    const offset = new THREE.Vector3(9, 10, 9);
     const camPos = presetTarget.clone().add(offset).add(manualCameraOffset);
-    camera.position.copy(camPos);
-    camera.lookAt(presetTarget.x, presetTarget.y, presetTarget.z);
+    setCameraLook(camPos, presetTarget);
   }
 
   function positionOverviewCamera() {
-    const offset = new THREE.Vector3(20, 20, 20).add(manualCameraOffset);
-    camera.position.copy(offset);
-    camera.lookAt(0, -5, 0);
+    const focusPoints = [];
+    [miner, truck, elevatorAnchor, drillMesh].forEach((obj) => {
+      if (obj) {
+        const v = new THREE.Vector3();
+        obj.getWorldPosition(v);
+        focusPoints.push(v);
+      }
+    });
+
+    const center = focusPoints.length
+      ? focusPoints.reduce((acc, v) => acc.add(v), new THREE.Vector3()).multiplyScalar(1 / focusPoints.length)
+      : new THREE.Vector3(0, -2, 0);
+
+    const offset = new THREE.Vector3(16, 18, 16).add(manualCameraOffset);
+    const camPos = center.clone().add(offset);
+    setCameraLook(camPos, center, 10, 120);
   }
 
   function setCameraPreset(preset) {
@@ -3071,7 +3093,7 @@
   document.querySelectorAll('#camera-panel button[data-move]').forEach((btn) => {
     btn.addEventListener("click", () => {
       const move = btn.getAttribute("data-move");
-      const step = 1.0;
+      const step = 1.5;
       switch (move) {
         case "up":
           nudgeCamera(0, step);
@@ -3086,17 +3108,17 @@
           nudgeCamera(step, 0);
           break;
         case "zoom-in":
-          zoomCamera(-1.0);
+          zoomCamera(-1.5);
           break;
         case "zoom-out":
-          zoomCamera(1.0);
+          zoomCamera(1.5);
           break;
       }
     });
   });
 
   window.addEventListener("keydown", (e) => {
-    const step = 1.0;
+    const step = 1.5;
     switch (e.key) {
       case "ArrowUp":
         nudgeCamera(0, step);
@@ -3112,10 +3134,10 @@
         break;
       case "+":
       case "=":
-        zoomCamera(-1.0);
+        zoomCamera(-1.5);
         break;
       case "-":
-        zoomCamera(1.0);
+        zoomCamera(1.5);
         break;
     }
   });
