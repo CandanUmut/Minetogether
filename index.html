@@ -237,6 +237,12 @@
       filter: saturate(1.05);
     }
 
+    @media (max-width: 600px) {
+      #mine-canvas {
+        height: 260px;
+      }
+    }
+
     .mine-panel::before {
       content: "";
       position: absolute;
@@ -1145,6 +1151,20 @@
     oil: 0,
     gems: 0,
     money: 0,
+    logistics: {
+      elevatorLevel: 1,
+      truckLevel: 1,
+      elevatorSpeedBase: 1,
+      truckSpeedBase: 1,
+      elevatorCapacityBase: 50,
+      truckCapacityBase: 200,
+    },
+    oreFlow: {
+      shaftOre: 0,
+      elevatorLoad: 0,
+      surfaceOre: 0,
+      truckLoad: 0,
+    },
     chargeReadyAt: 0,
     chargeActiveUntil: 0,
     soundEnabled: true,
@@ -1541,6 +1561,8 @@
       });
 
       state.specialUpgrades = { ...defaultState.specialUpgrades, ...(state.specialUpgrades || {}) };
+      state.logistics = { ...defaultState.logistics, ...(state.logistics || {}) };
+      state.oreFlow = { ...defaultState.oreFlow, ...(state.oreFlow || {}) };
       state.currentEvent = { ...defaultState.currentEvent, ...(state.currentEvent || {}) };
       state.stabilityBuffUntil = state.stabilityBuffUntil || 0;
       state.language = state.language || "en";
@@ -1593,6 +1615,7 @@
       btn.addEventListener("click", () => {
         state.currentMineId = mine.id;
         recalcDerivedStats();
+        rebuildMinersForCurrentMine();
         updateStatsUI();
         renderMineTabs();
         log(`${mine.name} selected.`);
@@ -1639,6 +1662,7 @@
     };
     state.currentMineId = preset.id;
     recalcDerivedStats();
+    rebuildMinersForCurrentMine();
     renderMineTabs();
     updateStatsUI();
     log(`New mine opened: ${preset.name}`);
@@ -1767,14 +1791,14 @@
     state.gems += gemGain;
 
     const moneyGainRaw = goldGain * 1 + oilGain * 1.45 + gemGain * 6.5;
-    const moneyGain = moneyGainRaw * (1 + mine.efficiencyLevel * 0.12);
-    state.money += moneyGain;
+    const oreValue = moneyGainRaw * (1 + mine.efficiencyLevel * 0.12);
+    state.oreFlow.shaftOre += oreValue;
 
     if (!isAuto) {
-      log(`+${moneyGain.toFixed(1)} 💰 (kazma) · Depth: ${mine.depth.toFixed(1)} m`);
+      log(`+${oreValue.toFixed(1)} ore added to shaft · Depth: ${mine.depth.toFixed(1)} m`);
     }
 
-    return { moneyGain, goldGain, oilGain, gemGain };
+    return { moneyGain: 0, oreValue, goldGain, oilGain, gemGain };
   }
 
   function canAfford(cost) {
@@ -1937,6 +1961,14 @@
   const tempVec = new THREE.Vector3();
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
+  const elevatorState = {
+    mode: "idle_surface",
+    progress: 0,
+  };
+  const truckState = {
+    hasLoad: false,
+  };
+  let minerClones = [];
 
   const dustMaterial = new THREE.MeshStandardMaterial({
     color: 0xc4b5a1,
@@ -1953,11 +1985,18 @@
     let y = 0;
     while (y < size) {
       const h = 10 + Math.random() * 25;
-      const light = 15 + Math.random() * 25;
-      ctx.fillStyle = `hsl(28, 25%, ${light}%)`;
+      const depthRatio = y / size;
+      const light = 14 + Math.random() * 20 - depthRatio * 8;
+      ctx.fillStyle = `hsl(28, 25%, ${Math.max(8, light)}%)`;
       ctx.fillRect(0, y, size, h);
       y += h;
     }
+
+    const grad = ctx.createLinearGradient(0, 0, 0, size);
+    grad.addColorStop(0.35, "rgba(0,0,0,0)");
+    grad.addColorStop(1, "rgba(0,0,0,0.35)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -2060,7 +2099,7 @@
     cartDirection = 1;
   }
 
-  function buildMiner() {
+  function buildMiner(trackGlobals = true) {
     const group = new THREE.Group();
     const bodyMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6, metalness: 0.1 });
     const skinMat = new THREE.MeshStandardMaterial({ color: 0xf5d0a3 });
@@ -2086,34 +2125,80 @@
     group.add(legL, legR);
 
     const armGeo = new THREE.BoxGeometry(0.18, 0.6, 0.18);
-    minerArmL = new THREE.Mesh(armGeo, skinMat);
-    minerArmL.position.set(-0.5, 1.05, 0);
-    minerArmR = new THREE.Mesh(armGeo, skinMat);
-    minerArmR.position.set(0.5, 1.05, 0);
-    group.add(minerArmL, minerArmR);
+    const armL = new THREE.Mesh(armGeo, skinMat);
+    armL.position.set(-0.5, 1.05, 0);
+    const armR = new THREE.Mesh(armGeo, skinMat);
+    armR.position.set(0.5, 1.05, 0);
+    group.add(armL, armR);
 
     const pickGeo = new THREE.BoxGeometry(0.9, 0.12, 0.12);
     const pickMat = new THREE.MeshStandardMaterial({ color: 0xb3b3b3, metalness: 0.8, roughness: 0.3 });
-    pickaxeMesh = new THREE.Mesh(pickGeo, pickMat);
-    pickaxeMesh.position.set(0.6, 0, 0);
-    minerArmR.add(pickaxeMesh);
+    const pick = new THREE.Mesh(pickGeo, pickMat);
+    pick.position.set(0.6, 0, 0);
+    armR.add(pick);
 
     group.position.set(-2.5, 0.4, 2.3);
     group.rotation.y = -Math.PI / 4;
-    return group;
+
+    if (trackGlobals) {
+      minerArmL = armL;
+      minerArmR = armR;
+      pickaxeMesh = pick;
+    }
+
+    return { group, armL, armR };
+  }
+
+  function createMinerInstance() {
+    const built = buildMiner(false);
+    return built;
+  }
+
+  function rebuildMinersForCurrentMine() {
+    if (!scene) return;
+    minerClones.forEach((c) => scene.remove(c.group));
+    minerClones = [];
+
+    const mine = getCurrentMine();
+    if (!mine) return;
+
+    const totalMiners = Math.min(mine.miners, 6);
+    for (let i = 0; i < totalMiners; i++) {
+      const built = createMinerInstance();
+      const offsetX = -2.5 + (i % 3) * 1.2;
+      const offsetY = drillMesh ? drillMesh.position.y + 0.3 + Math.floor(i / 3) * 0.5 : 0.5;
+      const offsetZ = 2.3 + ((i % 2) * 0.4);
+      built.group.position.set(offsetX + (Math.random() - 0.5) * 0.08, offsetY, offsetZ);
+      built.group.rotation.y = -Math.PI / 4 + (i - 1) * 0.1;
+      minerClones.push(built);
+      scene.add(built.group);
+    }
   }
 
   function createOreBlock(type, depth) {
     let mat;
     let geo;
     if (type === "gold") {
-      mat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0x854d0e, metalness: 0.6, roughness: 0.3 });
+      mat = new THREE.MeshStandardMaterial({
+        color: 0xfbbf24,
+        emissive: 0x854d0e,
+        emissiveIntensity: 0.35,
+        metalness: 0.65,
+        roughness: 0.26,
+      });
       geo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
     } else if (type === "oil") {
       mat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.9, roughness: 0.12 });
       geo = new THREE.SphereGeometry(0.35, 8, 6);
     } else {
-      mat = new THREE.MeshStandardMaterial({ color: 0x7dd3fc, emissive: 0x38bdf8, roughness: 0.2, transparent: true, opacity: 0.95 });
+      mat = new THREE.MeshStandardMaterial({
+        color: 0x7dd3fc,
+        emissive: 0x38bdf8,
+        emissiveIntensity: 0.7,
+        roughness: 0.18,
+        transparent: true,
+        opacity: 0.95,
+      });
       geo = new THREE.OctahedronGeometry(0.45, 0);
     }
     const mesh = new THREE.Mesh(geo, mat);
@@ -2136,15 +2221,26 @@
     for (let i = 0; i < 18; i++) {
       createOreBlock("gem", 60 + Math.random() * 220);
     }
+    const pocketMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.85, metalness: 0.05 });
+    for (let i = 0; i < 14; i++) {
+      const geo = new THREE.BoxGeometry(0.7 + Math.random() * 0.6, 0.5 + Math.random() * 0.8, 0.6 + Math.random() * 0.5);
+      const mesh = new THREE.Mesh(geo, pocketMat);
+      mesh.position.set((Math.random() - 0.5) * 3.6, -(Math.random() * 110), Math.random() > 0.5 ? 2.2 : -2.2);
+      mesh.rotation.z = (Math.random() - 0.5) * 0.4;
+      mesh.rotation.y = (Math.random() - 0.5) * 0.6;
+      shaftGroup.add(mesh);
+      const depthVal = Math.abs(mesh.position.y) / 0.2;
+      oreDecorations.push({ mesh, depth: depthVal });
+    }
   }
 
   function resizeRendererToCanvas() {
     if (!renderer) return;
     const canvas = renderer.domElement;
 
-    // Canvas CSS genişliği/yüksekliği
-    const width = canvas.clientWidth || 800;
-    const height = canvas.clientHeight || 450;
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width || window.innerWidth;
+    const height = rect.height || 360;
 
     renderer.setSize(width, height, false);
     if (camera) {
@@ -2157,12 +2253,30 @@
     const canvas = document.getElementById("mine-canvas");
     canvas.height = 360;
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.domElement.style.touchAction = "none";
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
     renderer.autoClear = false;
     renderer.setClearColor(0x020617, 1);
+
+    const gl = renderer.getContext();
+    if (!gl) {
+      console.error("WebGL not available on this device.");
+      const overlay = document.createElement("div");
+      overlay.textContent = "WebGL not available on this device.";
+      overlay.style.position = "absolute";
+      overlay.style.top = "12px";
+      overlay.style.left = "12px";
+      overlay.style.padding = "6px 10px";
+      overlay.style.background = "rgba(15,23,42,0.85)";
+      overlay.style.color = "#f87171";
+      overlay.style.borderRadius = "8px";
+      overlay.style.fontSize = "12px";
+      canvas.parentElement?.appendChild(overlay);
+      return;
+    }
 
     resizeRendererToCanvas();
 
@@ -2295,7 +2409,8 @@
     minimapMarker.position.set(0, 0, 0);
     scene.add(minimapMarker);
 
-    minerGroup = buildMiner();
+    const minerBuilt = buildMiner(true);
+    minerGroup = minerBuilt.group;
     minerGroup.name = "miner";
     miner = minerGroup;
     scene.add(minerGroup);
@@ -2339,6 +2454,7 @@
     overviewAnchor = new THREE.Object3D();
     overviewAnchor.name = "overviewAnchor";
     scene.add(minerAnchor, truckAnchor, overviewAnchor);
+    rebuildMinersForCurrentMine();
 
     // Initialize camera to a sensible default overview framing.
     syncCameraAnchors();
@@ -2391,12 +2507,45 @@
 
   function animateCart(dt) {
     if (!cartMesh) return;
+    const truckLevel = state.logistics.truckLevel || 1;
+    const baseSpeed = 2.1 * (state.logistics.truckSpeedBase || 1);
     const speedBoost = truckBoostTimer > 0 ? 1.7 : 1;
-    cartOffset += dt * cartDirection * 2.1 * speedBoost;
-    if (cartOffset > 3.5 || cartOffset < -3.5) {
-      cartDirection *= -1;
-      cartOffset = THREE.MathUtils.clamp(cartOffset, -3.5, 3.5);
+    const speed = baseSpeed * speedBoost * (1 + 0.2 * (truckLevel - 1));
+    const capacity = state.logistics.truckCapacityBase * (1 + 0.6 * (truckLevel - 1));
+    cartOffset += dt * cartDirection * speed;
+    const maxOffset = 3.5;
+    if (cartOffset > maxOffset) {
+      cartOffset = maxOffset;
+      if (truckState.hasLoad && state.oreFlow.truckLoad > 0) {
+        state.money += state.oreFlow.truckLoad;
+        spawnFloatingTextNearTruck(`+${state.oreFlow.truckLoad.toFixed(1)} 💰`);
+        soundManager.playMoney();
+        state.oreFlow.truckLoad = 0;
+        truckState.hasLoad = false;
+        updateStatsUI();
+      }
+      cartDirection = -1;
+    } else if (cartOffset < -maxOffset) {
+      cartOffset = -maxOffset;
+      if (truckState.hasLoad && state.oreFlow.truckLoad > 0) {
+        state.money += state.oreFlow.truckLoad;
+        spawnFloatingTextNearTruck(`+${state.oreFlow.truckLoad.toFixed(1)} 💰`);
+        soundManager.playMoney();
+        state.oreFlow.truckLoad = 0;
+        truckState.hasLoad = false;
+        updateStatsUI();
+      }
+      cartDirection = 1;
     }
+
+    if (!truckState.hasLoad && Math.abs(cartOffset) < 0.3 && state.oreFlow.surfaceOre > 0) {
+      const loadAmount = Math.min(capacity, state.oreFlow.surfaceOre);
+      state.oreFlow.surfaceOre -= loadAmount;
+      state.oreFlow.truckLoad = loadAmount;
+      truckState.hasLoad = true;
+      log(`Truck loaded ${loadAmount.toFixed(1)} ore.`);
+    }
+
     cartMesh.position.x = cartOffset;
     cartMesh.rotation.y = cartDirection === 1 ? Math.PI : 0;
     cartWheels.forEach((w) => (w.rotation.z += dt * 6 * cartDirection));
@@ -2404,17 +2553,55 @@
 
   function updateElevator(dt) {
     if (!elevatorAnchor || !drillMesh) return;
-
-    // Move elevator between surface and current drill depth
     const surfaceY = 1.2;
-    const targetY = THREE.MathUtils.clamp(drillMesh.position.y + 2.0, -50, surfaceY);
+    const bottomY = THREE.MathUtils.clamp(drillMesh.position.y + 1.0, -55, surfaceY - 1.5);
+    const elevLevel = state.logistics.elevatorLevel || 1;
+    const speed = (state.logistics.elevatorSpeedBase || 1) * (1 + 0.25 * (elevLevel - 1));
+    const capacity = state.logistics.elevatorCapacityBase * (1 + 0.5 * (elevLevel - 1));
 
-    // Smoothly move towards the target height
-    elevatorAnchor.position.y = THREE.MathUtils.lerp(
-      elevatorAnchor.position.y,
-      targetY,
-      0.8 * dt
-    );
+    switch (elevatorState.mode) {
+      case "idle_surface":
+        elevatorAnchor.position.y = THREE.MathUtils.lerp(elevatorAnchor.position.y, surfaceY, 0.6 * dt);
+        if (state.oreFlow.shaftOre > 10) {
+          elevatorState.mode = "moving_down";
+          elevatorState.progress = 0;
+        }
+        break;
+      case "moving_down":
+        elevatorAnchor.position.y = THREE.MathUtils.lerp(elevatorAnchor.position.y, bottomY, speed * dt);
+        if (Math.abs(elevatorAnchor.position.y - bottomY) < 0.2) {
+          elevatorState.mode = "loading";
+          elevatorState.progress = 0;
+        }
+        break;
+      case "loading":
+        elevatorState.progress += dt;
+        if (elevatorState.progress > 0.6) {
+          const free = capacity - state.oreFlow.elevatorLoad;
+          const take = Math.min(free, state.oreFlow.shaftOre);
+          state.oreFlow.shaftOre -= take;
+          state.oreFlow.elevatorLoad += take;
+          elevatorState.mode = "moving_up";
+          elevatorState.progress = 0;
+        }
+        break;
+      case "moving_up":
+        elevatorAnchor.position.y = THREE.MathUtils.lerp(elevatorAnchor.position.y, surfaceY, speed * dt);
+        if (Math.abs(elevatorAnchor.position.y - surfaceY) < 0.15) {
+          elevatorState.mode = "unloading";
+          elevatorState.progress = 0;
+        }
+        break;
+      case "unloading":
+        elevatorState.progress += dt;
+        if (elevatorState.progress > 0.4) {
+          state.oreFlow.surfaceOre += state.oreFlow.elevatorLoad;
+          state.oreFlow.elevatorLoad = 0;
+          elevatorState.mode = "idle_surface";
+          elevatorState.progress = 0;
+        }
+        break;
+    }
   }
 
   function updateOreVisibility() {
@@ -2443,7 +2630,7 @@
     const pos = drillMesh ? drillMesh.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3();
     const screen = projectToScreen(pos);
     const entries = [];
-    if (gains.moneyGain > 0) entries.push({ text: `+${gains.moneyGain.toFixed(1)} 💰`, color: "#facc15" });
+    if (gains.oreValue > 0) entries.push({ text: `+${gains.oreValue.toFixed(1)} ore`, color: "#facc15" });
     if (gains.goldGain > 0.2) entries.push({ text: `+${gains.goldGain.toFixed(1)} 🪙`, color: "#fbbf24" });
     if (gains.oilGain > 0.2) entries.push({ text: `+${gains.oilGain.toFixed(1)} 🛢️`, color: "#cbd5f5" });
     if (gains.gemGain > 0) entries.push({ text: `+${gains.gemGain.toFixed(2)} 💎`, color: "#7dd3fc" });
@@ -2467,6 +2654,27 @@
         el.remove();
       }, 900);
     });
+  }
+
+  function spawnFloatingTextNearTruck(text) {
+    if (!floatingContainer || !cartMesh) return;
+    const pos = cartMesh.getWorldPosition(new THREE.Vector3());
+    const screen = projectToScreen(pos);
+    const el = document.createElement("div");
+    el.className = "floating-text";
+    el.style.left = `${screen.x}px`;
+    el.style.top = `${screen.y - 14}px`;
+    el.style.color = "#facc15";
+    el.textContent = text;
+    floatingContainer.appendChild(el);
+    requestAnimationFrame(() => {
+      el.style.opacity = 1;
+      el.style.transform = `translate(-50%, -60%) translateY(-10px)`;
+    });
+    setTimeout(() => {
+      el.style.opacity = 0;
+      el.remove();
+    }, 900);
   }
 
   function spawnRipple() {
@@ -2495,6 +2703,17 @@
       minerArmR.rotation.z = swing;
       minerArmL.rotation.z = -swing * 0.5;
     }
+
+    minerClones.forEach((m, idx) => {
+      const swing = Math.sin((autoDigTimer + idx * 0.2) * 2) * 0.3;
+      if (m.armR && m.armL) {
+        m.armR.rotation.z = swing;
+        m.armL.rotation.z = -swing * 0.5;
+      }
+      if (drillMesh) {
+        m.group.position.y = drillMesh.position.y + 0.3 + Math.floor(idx / 3) * 0.5;
+      }
+    });
   }
 
   function getCameraPositionForRadius(target, radius, heightMultiplier = 1.0) {
@@ -3041,7 +3260,7 @@
     spawnRipple();
     spawnFloatingTextFromGains(gains);
     soundManager.playDig();
-    if (gains.moneyGain > 8) soundManager.playMoney();
+    if (gains.oreValue > 15) soundManager.playMoney();
     if (gains.gemGain > 0) soundManager.playGem();
     updateStatsUI();
     saveLocalState();
@@ -3075,6 +3294,7 @@
     }
     mine.miners += 1;
     recalcDerivedStats();
+    rebuildMinersForCurrentMine();
     log(`${mine.name}  hired a new worker. Total: ${mine.miners}.`);
     soundManager.playUpgrade();
     updateStatsUI();
@@ -3147,6 +3367,8 @@
       return;
     }
     state.specialUpgrades.elevator = true;
+    state.logistics.elevatorLevel = (state.logistics.elevatorLevel || 1) + 1;
+    state.logistics.elevatorCapacityBase *= 1.1;
     recalcDerivedStats();
     log("Endless Elevator installed! Auto-digging is faster.");
     soundManager.playUpgrade();
@@ -3310,7 +3532,7 @@
 
   // ===================== Game loop =====================
   function loop(now) {
-    const dt = (now - lastFrameTime) / 1000;
+    const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
     lastFrameTime = now;
 
     soundManager.update(dt);
@@ -3342,6 +3564,11 @@
     requestAnimationFrame(loop);
   }
 
+  function startMainLoop() {
+    lastFrameTime = performance.now();
+    requestAnimationFrame(loop);
+  }
+
   // periodic save + sync
   setInterval(() => {
     if (!sessionStarted) return;
@@ -3357,25 +3584,27 @@
   });
 
   // ===================== Init =====================
-  window.addEventListener("pointerdown", () => markInteraction(), { once: true });
+  window.addEventListener("DOMContentLoaded", () => {
+    window.addEventListener("pointerdown", () => markInteraction(), { once: true });
+    loadLocalState();
+    applyLanguage();
+    updateOnlineStatusUI();
+    recalcDerivedStats();
+    updateStatsUI();
+    renderMineTabs();
+    soundManager.updateMusicState();
+    if (state.playerName) {
+      playerNameInput.value = state.playerName;
+    }
+    if (state.roomCode) {
+      roomCodeInput.value = state.roomCode;
+    }
 
-  loadLocalState();
-  applyLanguage();
-  updateOnlineStatusUI();
-  recalcDerivedStats();
-  updateStatsUI();
-  renderMineTabs();
-  soundManager.updateMusicState();
-  if (state.playerName) {
-    playerNameInput.value = state.playerName;
-  }
-  if (state.roomCode) {
-    roomCodeInput.value = state.roomCode;
-  }
-
-  initThree();
-  setCameraPreset("overview");
-  requestAnimationFrame(loop);
+    initThree();
+    setCameraPreset("overview");
+    resizeRendererToCanvas();
+    startMainLoop();
+  });
 </script>
 </body>
 </html>
